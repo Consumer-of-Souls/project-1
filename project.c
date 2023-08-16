@@ -1,3 +1,7 @@
+//  CITS2002 Project 1 2023
+//  Student1:   23751337   JIA QI LAM
+//  Student2:   23970936   JACOB READ
+
 #include <stdio.h>
 #include <stdlib.h>
 
