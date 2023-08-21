@@ -55,7 +55,7 @@ struct process {
 
 struct command {
     char name[MAX_COMMAND_NAME+1];
-    struct syscall **syscalls;
+    struct syscall **syscalls;          // check if just one asterisk - pointer to array of structs or pointers
     int num_syscalls;
 };
 
