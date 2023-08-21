@@ -39,6 +39,13 @@
 
 #define CHAR_COMMENT                    '#'
 
+struct process {
+    int time;
+    struct process **children;
+    int num_children;
+    struct process *parent;
+};
+
 void read_sysconfig(char argv0[], char filename[])
 {
 }
