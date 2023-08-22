@@ -43,7 +43,10 @@ struct device {
     char name[MAX_DEVICE_NAME+1];
     int read_speed;
     int write_speed;
+    struct process **queue;
 };
+
+struct device devices[MAX_DEVICES];
 
 struct process {
     struct command *command;
@@ -55,9 +58,11 @@ struct process {
 
 struct command {
     char name[MAX_COMMAND_NAME+1];
-    struct syscall **syscalls;          // check if just one asterisk - pointer to array of structs or pointers
+    struct syscall *syscalls;          // pointer to an array of structs
     int num_syscalls;
 };
+
+struct command commands[MAX_COMMANDS];
 
 enum syscall_types {
     SPAWN,
@@ -109,6 +114,19 @@ struct syscall *create_syscall(int time, enum syscall_types type, struct device 
     new_syscall->data = data;
     return new_syscall;
 }
+
+struct sleeper {
+    struct process *process;
+    int time;
+};
+
+struct process **ready; // A pointer to an array of pointers to ready processes
+
+struct process *running; // A pointer to the running process
+
+struct sleeper *sleeping; // A pointer to an array of sleeper structs (sleeping processes)
+
+struct process **waiting; // A pointer to an array of pointers to waiting processes
 
 void read_sysconfig(char argv0[], char filename[]) {
 
