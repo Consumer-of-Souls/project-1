@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
 //  you may need other standard header files
 
 
@@ -56,6 +58,7 @@ struct process {
     struct process *parent;
 };
 
+
 struct command {
     char name[MAX_COMMAND_NAME+1];
     struct syscall *syscalls;          // pointer to an array of structs
@@ -77,6 +80,7 @@ struct syscall {
     int time;
     enum syscall_types type;
     struct device *device;
+    struct command *command;
     int data;
 };
 
@@ -98,7 +102,7 @@ struct process *create_process(struct command *command, int time, struct process
     return new_process;
 }
 
-struct command *create_command(char *name, struct syscall **syscalls, int num_syscalls) {
+struct command *create_command(char *name, struct syscall *syscalls, int num_syscalls) {
     struct command *new_command = malloc(sizeof(struct command));
     strcpy(new_command->name, name);
     new_command->syscalls = syscalls;
@@ -129,10 +133,35 @@ struct sleeper *sleeping; // A pointer to an array of sleeper structs (sleeping 
 struct process **waiting; // A pointer to an array of pointers to waiting processes
 
 void read_sysconfig(char argv0[], char filename[]) {
-
 }
 
 void read_commands(char argv0[], char filename[]) {
+    
+ FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        printf("Failed to open file: %s\n", filename);
+        return;
+    }
+    int currentCommandIndex = -1;
+    char line[100];
+    while (fgets(line, sizeof(line), file) != NULL) {
+        if (line[0] == CHAR_COMMENT || line[0] == '\n') {
+            continue; // Skip comment lines and empty lines
+        }
+        if (line[0] != '\t') {
+            currentCommandIndex++;
+            sscanf(line, "%s", commands[currentCommandIndex].name);
+            commands[currentCommandIndex].num_syscalls = 0;
+        } else {
+            struct syscall newSysCall;
+            sscanf(line, "%dusecs %s %s %d B",
+                   &newSysCall.time,
+                   (int *)&newSysCall.type,   //?? cast str to enum 
+                   newSysCall.device,
+                   &newSysCall.data);
+            commands[currentCommandIndex].syscalls[commands[currentCommandIndex].num_syscalls++] = newSysCall;
+        }
+    }
 
 }
 
