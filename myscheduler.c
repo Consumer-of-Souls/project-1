@@ -121,7 +121,7 @@ struct sleeper {
 
 struct device devices[MAX_DEVICES];
 
-struct command commands[MAX_COMMANDS];
+struct command **commands;
 
 struct process **ready; // A pointer to an array of pointers to ready processes
 
@@ -151,26 +151,12 @@ void read_commands(char argv0[], char filename[]) {
             char *type;
             struct syscall *syscall;                                                  
             sscanf(line, "%dusecs %s", &time, type);
-            if (strcmp(type, "spawn") == 0) {                           // Problem with if spawned command after current command
+            if (strcmp(type, "spawn") == 0) {
                 char *name;
                 sscanf(line, "%dusecs %s %s", &time, type, name);
                 for (int i=0; i<MAX_COMMANDS; i++) {
-                    if (strcmp(commands[i].name, name) == 0) {
-                        syscall = create_syscall(time, SPAWN, NULL, &commands[i], 0);
-                        break;
-                    }
-                }
-            } else if (strcmp(type, "read") == 0 || strcmp(type, "write") == 0) {
-                int data;
-                char *name;
-                sscanf(line, "%dusecs %s %s %d B", &time, type, name, &data);
-                for (int i=0; i<MAX_DEVICES; i++) {
-                    if (strcmp(devices[i].name, name) == 0) {
-                        if (strcmp(type, "read") == 0) {
-                            syscall = create_syscall(time, READ, &devices[i], NULL, data);
-                        } else {
-                            syscall = create_syscall(time, WRITE, &devices[i], NULL, data);
-                        }
+                    if (strcmp(commands[i]->name, name) == 0) {
+                        syscall = create_syscall(time, SPAWN, NULL, commands[i], 0);
                         break;
                     }
                 }
@@ -188,13 +174,20 @@ void read_commands(char argv0[], char filename[]) {
             } else {
                 printf("Invalid syscall: %s\n", type);
             }
+            if (syscall != NULL) {
+                commands[currentCommandIndex]->num_syscalls++;
+                commands[currentCommandIndex]->syscalls = realloc(commands[currentCommandIndex]->syscalls, sizeof(struct syscall *) * commands[currentCommandIndex]->num_syscalls);
+                commands[currentCommandIndex]->syscalls[commands[currentCommandIndex]->num_syscalls-1] = syscall;
+            }
         } else {
+            // Create new command and add it to the array
             currentCommandIndex++;
-            sscanf(line, "%s", commands[currentCommandIndex].name);
-            commands[currentCommandIndex].num_syscalls = 0;
+            char *name;
+            sscanf(line, "%s", name);
+            commands[currentCommandIndex] = create_command(name, NULL, 0);
         }
     }
-
+    fclose(file);
 }
 
 //  ----------------------------------------------------------------------
