@@ -127,16 +127,21 @@ struct sleeper *create_sleeper(struct process *process, int time) {
 }
 
 struct device **devices; // A pointer to an array of pointers to devices
+int num_devices = 0;
 
 struct command **commands; // A pointer to an array of pointers to commands
+int num_commands = 0;
 
 struct process **ready; // A pointer to an array of pointers to ready processes
+int num_ready = 0;
 
 struct process *running; // A pointer to the running process
 
 struct sleeper **sleeping; // A pointer to an array of pointers to sleeping processes
+int num_sleeping = 0;
 
 struct process **waiting; // A pointer to an array of pointers to waiting processes
+int num_waiting = 0;
 
 void read_sysconfig(char argv0[], char filename[]) {
     FILE *file = fopen(filename, "r");
@@ -145,7 +150,7 @@ void read_sysconfig(char argv0[], char filename[]) {
         return;
     }
     char line[100];
-    
+
 }
 
 void read_commands(char argv0[], char filename[]) {
@@ -154,7 +159,6 @@ void read_commands(char argv0[], char filename[]) {
         printf("Failed to open file: %s\n", filename);
         return;
     }
-    int currentCommandIndex = -1;
     char line[100];
     while (fgets(line, sizeof(line), file) != NULL) {
         if (line[0] == CHAR_COMMENT || line[0] == '\n') {
@@ -189,16 +193,16 @@ void read_commands(char argv0[], char filename[]) {
                 printf("Invalid syscall: %s\n", type);
             }
             if (syscall != NULL) {
-                commands[currentCommandIndex]->num_syscalls++;
-                commands[currentCommandIndex]->syscalls = realloc(commands[currentCommandIndex]->syscalls, sizeof(struct syscall *) * commands[currentCommandIndex]->num_syscalls);
-                commands[currentCommandIndex]->syscalls[commands[currentCommandIndex]->num_syscalls-1] = syscall;
+                commands[num_commands-1]->num_syscalls++;
+                commands[num_commands-1]->syscalls = realloc(commands[num_commands-1]->syscalls, sizeof(struct syscall *) * commands[num_commands-1]->num_syscalls);
+                commands[num_commands-1]->syscalls[commands[num_commands-1]->num_syscalls-1] = syscall;
             }
         } else {
             // Create new command and add it to the array
-            currentCommandIndex++;
+            num_commands++;
             char *name;
             sscanf(line, "%s", name);
-            commands[currentCommandIndex] = create_command(name, NULL, 0);
+            commands[num_commands-1] = create_command(name, NULL, 0);
         }
     }
     fclose(file);
