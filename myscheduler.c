@@ -143,6 +143,8 @@ int num_sleeping = 0;
 struct process **waiting; // A pointer to an array of pointers to waiting processes
 int num_waiting = 0;
 
+struct sleeper *bus_process; // A pointer to the process that is using the bus
+
 void read_sysconfig(char argv0[], char filename[]) {
     FILE *file = fopen(filename, "r");
     if (file == NULL) {
