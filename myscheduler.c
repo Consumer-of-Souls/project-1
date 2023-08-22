@@ -48,8 +48,6 @@ struct device {
     struct process **queue;
 };
 
-struct device devices[MAX_DEVICES];
-
 struct process {
     struct command *command;
     int time;
@@ -58,14 +56,11 @@ struct process {
     struct process *parent;
 };
 
-
 struct command {
     char name[MAX_COMMAND_NAME+1];
-    struct syscall *syscalls;          // pointer to an array of structs
+    struct syscall **syscalls;          // pointer to an array of pointers to structs
     int num_syscalls;
 };
-
-struct command commands[MAX_COMMANDS];
 
 enum syscall_types {
     SPAWN,
@@ -102,7 +97,7 @@ struct process *create_process(struct command *command, int time, struct process
     return new_process;
 }
 
-struct command *create_command(char *name, struct syscall *syscalls, int num_syscalls) {
+struct command *create_command(char *name, struct syscall **syscalls, int num_syscalls) {
     struct command *new_command = malloc(sizeof(struct command));
     strcpy(new_command->name, name);
     new_command->syscalls = syscalls;
@@ -110,7 +105,7 @@ struct command *create_command(char *name, struct syscall *syscalls, int num_sys
     return new_command;
 }
 
-struct syscall *create_syscall(int time, enum syscall_types type, struct device *device, int data) {
+struct syscall *create_syscall(int time, enum syscall_types type, struct device *device, struct command *command, int data) {
     struct syscall *new_syscall = malloc(sizeof(struct syscall));
     new_syscall->time = time;
     new_syscall->type = type;
@@ -124,6 +119,10 @@ struct sleeper {
     int time;
 };
 
+struct device devices[MAX_DEVICES];
+
+struct command commands[MAX_COMMANDS];
+
 struct process **ready; // A pointer to an array of pointers to ready processes
 
 struct process *running; // A pointer to the running process
@@ -136,8 +135,7 @@ void read_sysconfig(char argv0[], char filename[]) {
 }
 
 void read_commands(char argv0[], char filename[]) {
-    
- FILE *file = fopen(filename, "r");
+    FILE *file = fopen(filename, "r");
     if (file == NULL) {
         printf("Failed to open file: %s\n", filename);
         return;
@@ -148,18 +146,52 @@ void read_commands(char argv0[], char filename[]) {
         if (line[0] == CHAR_COMMENT || line[0] == '\n') {
             continue; // Skip comment lines and empty lines
         }
-        if (line[0] != '\t') {
+        if (line[0] == '\t') {
+            int time;
+            char *type;
+            struct syscall *syscall;                                                  
+            sscanf(line, "%dusecs %s", &time, type);
+            if (strcmp(type, "spawn") == 0) {                           // Problem with if spawned command after current command
+                char *name;
+                sscanf(line, "%dusecs %s %s", &time, type, name);
+                for (int i=0; i<MAX_COMMANDS; i++) {
+                    if (strcmp(commands[i].name, name) == 0) {
+                        syscall = create_syscall(time, SPAWN, NULL, &commands[i], 0);
+                        break;
+                    }
+                }
+            } else if (strcmp(type, "read") == 0 || strcmp(type, "write") == 0) {
+                int data;
+                char *name;
+                sscanf(line, "%dusecs %s %s %d B", &time, type, name, &data);
+                for (int i=0; i<MAX_DEVICES; i++) {
+                    if (strcmp(devices[i].name, name) == 0) {
+                        if (strcmp(type, "read") == 0) {
+                            syscall = create_syscall(time, READ, &devices[i], NULL, data);
+                        } else {
+                            syscall = create_syscall(time, WRITE, &devices[i], NULL, data);
+                        }
+                        break;
+                    }
+                }
+            } else if (strcmp(type, "sleep") == 0) {
+                int data;
+                sscanf(line, "%dusecs %s %dusecs", &time, type, &data);
+                syscall = create_syscall(time, SLEEP, NULL, NULL, data);
+            } else if (strcmp(type, "wait") == 0 || strcmp(type, "exit") == 0) {
+                sscanf(line, "%dusecs %s", &time, type);
+                if (strcmp(type, "wait") == 0) {
+                    syscall = create_syscall(time, WAIT, NULL, NULL, 0);
+                } else {
+                    syscall = create_syscall(time, EXIT, NULL, NULL, 0);
+                }
+            } else {
+                printf("Invalid syscall: %s\n", type);
+            }
+        } else {
             currentCommandIndex++;
             sscanf(line, "%s", commands[currentCommandIndex].name);
             commands[currentCommandIndex].num_syscalls = 0;
-        } else {
-            struct syscall newSysCall;
-            sscanf(line, "%dusecs %s %s %d B",
-                   &newSysCall.time,
-                   (int *)&newSysCall.type,   //?? cast str to enum 
-                   newSysCall.device,
-                   &newSysCall.data);
-            commands[currentCommandIndex].syscalls[commands[currentCommandIndex].num_syscalls++] = newSysCall;
         }
     }
 
