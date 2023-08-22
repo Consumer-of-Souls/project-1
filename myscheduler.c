@@ -119,19 +119,33 @@ struct sleeper {
     int time;
 };
 
-struct device devices[MAX_DEVICES];
+struct sleeper *create_sleeper(struct process *process, int time) {
+    struct sleeper *new_sleeper = malloc(sizeof(struct sleeper));
+    new_sleeper->process = process;
+    new_sleeper->time = time;
+    return new_sleeper;
+}
 
-struct command **commands;
+struct device **devices; // A pointer to an array of pointers to devices
+
+struct command **commands; // A pointer to an array of pointers to commands
 
 struct process **ready; // A pointer to an array of pointers to ready processes
 
 struct process *running; // A pointer to the running process
 
-struct sleeper *sleeping; // A pointer to an array of sleeper structs (sleeping processes)
+struct sleeper **sleeping; // A pointer to an array of pointers to sleeping processes
 
 struct process **waiting; // A pointer to an array of pointers to waiting processes
 
 void read_sysconfig(char argv0[], char filename[]) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        printf("Failed to open file: %s\n", filename);
+        return;
+    }
+    char line[100];
+    
 }
 
 void read_commands(char argv0[], char filename[]) {
