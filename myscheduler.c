@@ -45,21 +45,25 @@ struct device {
     char name[MAX_DEVICE_NAME+1];
     int read_speed;
     int write_speed;
-    struct process **queue;
+    struct process *queue_head;
+    struct process *queue_tail;
+    struct device *next;
 };
 
 struct process {
     struct command *command;
     int time;
-    struct process **children;
+    int sycall_index;
     int num_children;
     struct process *parent;
+    struct process *next;
 };
 
 struct command {
     char name[MAX_COMMAND_NAME+1];
-    struct syscall **syscalls;          // pointer to an array of pointers to structs
-    int num_syscalls;
+    struct syscall *queue_head; 
+    struct syscall *queue_tail;
+    struct command *next;
 };
 
 enum syscall_types {
@@ -77,73 +81,147 @@ struct syscall {
     struct device *device;
     struct command *command;
     int data;
+    struct syscall *next;
 };
 
-struct device *create_device(char *name, int read_speed, int write_speed) {
+struct sleeping {
+    struct process *process;
+    int time;
+    struct sleeping *next;
+};
+
+struct device *device1; // A pointer to the first device
+
+struct command *command1; // A pointer to the first command
+struct command *commandn; // A pointer to the last command
+
+struct process *ready1; // A pointer to the first ready process
+struct process *readyn; // A pointer to the last ready process
+
+struct process *running; // A pointer to the running process
+
+struct sleeping *sleeping1; // A pointer to the first sleeping process
+
+struct process *waiting1; // A pointer to the first waiting process
+
+struct sleeping *bus_process; // A pointer to the process that is using the bus
+
+struct device *create_device(char name[], int read_speed, int write_speed) {
+    // Adds a new device to the linked list of devices, ordered by read speed (descending)
     struct device *new_device = malloc(sizeof(struct device));
     strcpy(new_device->name, name);
     new_device->read_speed = read_speed;
     new_device->write_speed = write_speed;
-    return new_device;
+    new_device->queue_head = NULL;
+    new_device->queue_tail = NULL;
+    new_device->next = NULL;
+    if (device1 == NULL) {
+        device1 = new_device;
+    } else {
+        struct device *current = device1;
+        struct device *previous = NULL;
+        while (current != NULL) {
+            if (read_speed > current->read_speed) {
+                if (previous == NULL) {
+                    new_device->next = device1;
+                    device1 = new_device;
+                } else {
+                    previous->next = new_device;
+                    new_device->next = current;
+                }
+                break;
+            }
+            previous = current;
+            current = current->next;
+        }
+        if (current == NULL) {
+            previous->next = new_device;
+        }
+    }
 }
 
-struct process *create_process(struct command *command, int time, struct process *parent) {
+struct process *create_process(struct command *command, struct process *parent) {
+    // Adds a new process to the end of the ready linked list
     struct process *new_process = malloc(sizeof(struct process));
     new_process->command = command;
-    new_process->time = time;
-    new_process->children = NULL;
+    new_process->time = 0;
+    new_process->sycall_index = 0;
     new_process->num_children = 0;
     new_process->parent = parent;
-    return new_process;
+    new_process->next = NULL;
+    if (ready1 == NULL) {
+        ready1 = new_process;
+        readyn = new_process;
+    } else {
+        readyn->next = new_process;
+        readyn = new_process;
+    }
 }
 
-struct command *create_command(char *name, struct syscall **syscalls, int num_syscalls) {
+struct command *create_command(char name[]) {
+    // Adds a new command to the end of the command linked list
     struct command *new_command = malloc(sizeof(struct command));
     strcpy(new_command->name, name);
-    new_command->syscalls = syscalls;
-    new_command->num_syscalls = num_syscalls;
-    return new_command;
+    new_command->queue_head = NULL;
+    new_command->queue_tail = NULL;
+    new_command->next = NULL;
+    if (command1 == NULL) {
+        command1 = new_command;
+        commandn = new_command;
+    } else {
+        commandn->next = new_command;
+        commandn = new_command;
+    }
 }
 
-struct syscall *create_syscall(int time, enum syscall_types type, struct device *device, struct command *command, int data) {
+struct syscall *create_syscall(struct command *parent_command, int time, enum syscall_types type, struct device *device, struct command *command, int data) {
+    // Adds a new syscall to the end of the parent command's syscall linked list
     struct syscall *new_syscall = malloc(sizeof(struct syscall));
     new_syscall->time = time;
     new_syscall->type = type;
     new_syscall->device = device;
+    new_syscall->command = command;
     new_syscall->data = data;
-    return new_syscall;
+    new_syscall->next = NULL;
+    if (parent_command->queue_head == NULL) {
+        parent_command->queue_head = new_syscall;
+        parent_command->queue_tail = new_syscall;
+    } else {
+        parent_command->queue_tail->next = new_syscall;
+        parent_command->queue_tail = new_syscall;
+    }
 }
 
-struct sleeper {
-    struct process *process;
-    int time;
-};
-
-struct sleeper *create_sleeper(struct process *process, int time) {
-    struct sleeper *new_sleeper = malloc(sizeof(struct sleeper));
-    new_sleeper->process = process;
-    new_sleeper->time = time;
-    return new_sleeper;
+struct sleeping *create_sleeping(struct process *process, int time) {
+    // Adds a new sleeping process to the sleeping linked list in order of time (ascending)
+    struct sleeping *new_sleeping = malloc(sizeof(struct sleeping));
+    new_sleeping->process = process;
+    new_sleeping->time = time;
+    new_sleeping->next = NULL;
+    if (sleeping1 == NULL) {
+        sleeping1 = new_sleeping;
+    } else {
+        struct sleeping *current = sleeping1;
+        struct sleeping *previous = NULL;
+        while (current != NULL) {
+            if (time < current->time) {
+                if (previous == NULL) {
+                    new_sleeping->next = sleeping1;
+                    sleeping1 = new_sleeping;
+                } else {
+                    previous->next = new_sleeping;
+                    new_sleeping->next = current;
+                }
+                break;
+            }
+            previous = current;
+            current = current->next;
+        }
+        if (current == NULL) {
+            previous->next = new_sleeping;
+        }
+    }
 }
-
-struct device **devices; // A pointer to an array of pointers to devices
-int num_devices = 0;
-
-struct command **commands; // A pointer to an array of pointers to commands
-int num_commands = 0;
-
-struct process **ready; // A pointer to an array of pointers to ready processes
-int num_ready = 0;
-
-struct process *running; // A pointer to the running process
-
-struct sleeper **sleeping; // A pointer to an array of pointers to sleeping processes
-int num_sleeping = 0;
-
-struct process **waiting; // A pointer to an array of pointers to waiting processes
-int num_waiting = 0;
-
-struct sleeper *bus_process; // A pointer to the process that is using the bus
 
 void read_sysconfig(char argv0[], char filename[]) {
     FILE *file = fopen(filename, "r");
