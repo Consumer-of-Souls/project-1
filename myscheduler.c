@@ -257,7 +257,6 @@ void read_sysconfig(char argv0[], char filename[]) {
             printf("Invalid sysconfig: %s\n", type);
         }
     }
-    printf("Finished reading sysconfig\n");
     fclose(file);
 }
 
@@ -357,16 +356,16 @@ void execute_commands(void) {
 //  ----------------------------------------------------------------------
 
 int main(int argc, char *argv[]) {
-//  ENSURE THAT WE HAVE THE CORRECT NUMBER OF COMMAND-LINE ARGUMENTS
+    // ENSURE THAT WE HAVE THE CORRECT NUMBER OF COMMAND-LINE ARGUMENTS
     if(argc != 3) {
         printf("Usage: %s sysconfig-file command-file\n", argv[0]);
         exit(EXIT_FAILURE);
     }
 
-//  READ THE SYSTEM CONFIGURATION FILE
+    // READ THE SYSTEM CONFIGURATION FILE
     read_sysconfig(argv[0], argv[1]);
 
-//  READ THE COMMAND FILE
+    // READ THE COMMAND FILE
     read_commands(argv[0], argv[2]);
 
     // DEBUG
@@ -381,18 +380,19 @@ int main(int argc, char *argv[]) {
         printf("Command: %s\n", command->name);
         struct syscall *syscall = command->queue_head;
         while (syscall != NULL) {
-            printf("Time: %d, Type: %d, Device: %s, Command: %s, Data: %d\n", syscall->time, syscall->type, syscall->device->name, syscall->command->name, syscall->data);
+            printf("Time: %d, Type: %d\n", syscall->time, syscall->type);
             syscall = syscall->next;
         }
         command = command->next;
     }
-    // print timequantum
     printf("Time Quantum: %d\n", time_quantum);
 
-//  EXECUTE COMMANDS, STARTING AT FIRST IN command-file, UNTIL NONE REMAIN
+    // END DEBUG
+
+    // EXECUTE COMMANDS, STARTING AT FIRST IN command-file, UNTIL NONE REMAIN
     execute_commands();
 
-//  PRINT THE PROGRAM'S RESULTS
+    // PRINT THE PROGRAM'S RESULTS
     printf("measurements  %i  %i\n", 0, 0);
 
     exit(EXIT_SUCCESS);
