@@ -362,6 +362,26 @@ int main(int argc, char *argv[]) {
 //  READ THE COMMAND FILE
     read_commands(argv[0], argv[2]);
 
+    // DEBUG
+
+    struct device *device = device1;
+    while (device != NULL) {
+        printf("Device: %s, Read Speed: %dBps, Write Speed: %dBps\n", device->name, device->read_speed, device->write_speed);
+        device = device->next;
+    }
+    struct command *command = command1;
+    while (command != NULL) {
+        printf("Command: %s\n", command->name);
+        struct syscall *syscall = command->queue_head;
+        while (syscall != NULL) {
+            printf("Time: %d, Type: %d, Device: %s, Command: %s, Data: %d\n", syscall->time, syscall->type, syscall->device->name, syscall->command->name, syscall->data);
+            syscall = syscall->next;
+        }
+        command = command->next;
+    }
+    // print timequantum
+    printf("Time Quantum: %d\n", time_quantum);
+
 //  EXECUTE COMMANDS, STARTING AT FIRST IN command-file, UNTIL NONE REMAIN
     execute_commands();
 
@@ -369,6 +389,7 @@ int main(int argc, char *argv[]) {
     printf("measurements  %i  %i\n", 0, 0);
 
     exit(EXIT_SUCCESS);
+    return 0;
 }
 
 //  vim: ts=8 sw=4
