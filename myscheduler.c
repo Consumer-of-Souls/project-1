@@ -42,7 +42,7 @@
 #define CHAR_COMMENT                    '#'
 
 struct device {
-    char name[MAX_DEVICE_NAME+1];
+    char *name;
     int read_speed;
     int write_speed;
     struct process *queue_head;
@@ -60,7 +60,7 @@ struct process {
 };
 
 struct command {
-    char name[MAX_COMMAND_NAME+1];
+    char *name;
     struct syscall *queue_head; 
     struct syscall *queue_tail;
     struct command *next;
@@ -106,7 +106,7 @@ struct process *waiting1; // A pointer to the first waiting process
 
 struct sleeping *bus_process; // A pointer to the process that is using the bus
 
-struct device *create_device(char name[], int read_speed, int write_speed) {
+struct device *create_device(char *name, int read_speed, int write_speed) {
     // Adds a new device to the linked list of devices, ordered by read speed (descending)
     struct device *new_device = malloc(sizeof(struct device));
     strcpy(new_device->name, name);
@@ -158,7 +158,7 @@ struct process *create_process(struct command *command, struct process *parent) 
     }
 }
 
-struct command *create_command(char name[]) {
+struct command *create_command(char *name) {
     // Adds a new command to the end of the command linked list
     struct command *new_command = malloc(sizeof(struct command));
     strcpy(new_command->name, name);
@@ -240,66 +240,81 @@ void read_commands(char argv0[], char filename[]) {
         return;
     }
     char line[100];
-    int command_index = -1;
+    struct command *current_command;
     while (fgets(line, sizeof(line), file) != NULL) {
         if (line[0] == CHAR_COMMENT || line[0] == '\n') {
             continue; // Skip comment lines and empty lines
         }
         if (line[0] == '\t') {
             int time;
-            char *type;
-            struct syscall *syscall;                                                  
+            char *type;                                             
             sscanf(line, "%dusecs %s", &time, type);
             if (strcmp(type, "spawn") == 0) {
                 char *name;
                 sscanf(line, "%dusecs %s %s", &time, type, name);
-                for (int i=0; i<MAX_COMMANDS; i++) {
-                    if (strcmp(commands[i]->name, name) == 0) {
-                        syscall = create_syscall(time, SPAWN, NULL, commands[i], 0);
+                // Check if the command already exists
+                struct command *command = command1;
+                while (command != NULL) {
+                    if (strcmp(command->name, name) == 0) {
+                        create_syscall(current_command, time, SPAWN, NULL, command, 0);
                         break;
                     }
+                    command = command->next;
                 }
-                if (syscall == NULL) {
-                    num_commands++;
-                    commands = realloc(commands, sizeof(struct command *) * num_commands);
-                    commands[num_commands-1] = create_command(name, NULL, 0);
-                    syscall = create_syscall(time, SPAWN, NULL, commands[num_commands-1], 0);
+                if (command == NULL) {
+                    create_command(name);
+                    create_syscall(current_command, time, SPAWN, NULL, commandn, 0);
+                }
+            } else if (strcmp(type, "read") == 0 || strcmp(type, "write") == 0) {
+                int data;
+                char *name;
+                sscanf(line, "%dusecs %s %s %dB", &time, type, name, &data);
+                // Check if the device already exists
+                struct device *device = device1;
+                while (device != NULL) {
+                    if (strcmp(device->name, name) == 0) {
+                        if (strcmp(type, "read") == 0) {
+                            create_syscall(current_command, time, READ, device, NULL, data);
+                        } else {
+                            create_syscall(current_command, time, WRITE, device, NULL, data);
+                        }
+                        break;
+                    }
+                    device = device->next;
+                }
+                if (device == NULL) {
+                    printf("Device not found: %s\n", name);
                 }
             } else if (strcmp(type, "sleep") == 0) {
                 int data;
                 sscanf(line, "%dusecs %s %dusecs", &time, type, &data);
-                syscall = create_syscall(time, SLEEP, NULL, NULL, data);
+                create_syscall(current_command, time, SLEEP, NULL, NULL, data);
             } else if (strcmp(type, "wait") == 0 || strcmp(type, "exit") == 0) {
                 sscanf(line, "%dusecs %s", &time, type);
                 if (strcmp(type, "wait") == 0) {
-                    syscall = create_syscall(time, WAIT, NULL, NULL, 0);
+                    create_syscall(current_command, time, WAIT, NULL, NULL, 0);
                 } else {
-                    syscall = create_syscall(time, EXIT, NULL, NULL, 0);
+                    create_syscall(current_command, time, EXIT, NULL, NULL, 0);
                 }
             } else {
                 printf("Invalid syscall: %s\n", type);
             }
-            if (syscall != NULL) {
-                commands[command_index]->num_syscalls++;
-                commands[command_index]->syscalls = realloc(commands[command_index]->syscalls, sizeof(struct syscall *) * commands[command_index]->num_syscalls);
-                commands[command_index]->syscalls[commands[command_index]->num_syscalls-1] = syscall;
-            }
         } else {
             char *name;
             sscanf(line, "%s", name);
-            command_index = -1;
-            for (int i=0; i<num_commands; i++) {
-                if (strcmp(commands[i]->name, name) == 0) {
-                    command_index = i;
+            // Check if the command already exists
+            struct command *command = command1;
+            while (command != NULL) {
+                if (strcmp(command->name, name) == 0) {
+                    current_command = command;
                     break;
                 }
+                command = command->next;
             }
-            if (command_index == -1) {
-                command_index = num_commands;
-                num_commands++;
-                commands = realloc(commands, sizeof(struct command *) * num_commands);
-                commands[command_index] = create_command(name, NULL, 0);
-            }            
+            if (command == NULL) {
+                create_command(name);
+                current_command = commandn;
+            }      
         }
     }
     fclose(file);
