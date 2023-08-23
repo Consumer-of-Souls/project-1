@@ -223,6 +223,8 @@ struct sleeping *create_sleeping(struct process *process, int time) {
     }
 }
 
+int time_quantum = DEFAULT_TIME_QUANTUM;
+
 void read_sysconfig(char argv0[], char filename[]) {
     FILE *file = fopen(filename, "r");
     if (file == NULL) {
@@ -230,7 +232,26 @@ void read_sysconfig(char argv0[], char filename[]) {
         return;
     }
     char line[100];
-
+    while (fgets(line, sizeof(line), file) != NULL) {
+        if (line[0] == CHAR_COMMENT || line[0] == '\n') {
+            continue; // Skip comment lines and empty lines
+        }
+        char *type;
+        sscanf(line, "%s", type);
+        if (strcmp(type, "device") == 0) {
+            char *name;
+            int read_speed;
+            int write_speed;
+            sscanf(line, "%s %s %dBps %dBps", type, name, &read_speed, &write_speed);
+            create_device(name, read_speed, write_speed);
+        } else if (strcmp(type, "timequantum") == 0) {
+            int time;
+            sscanf(line, "%s %d", type, &time);
+            time_quantum = time;
+        } else {
+            printf("Invalid sysconfig: %s\n", type);
+        }
+    }
 }
 
 void read_commands(char argv0[], char filename[]) {
