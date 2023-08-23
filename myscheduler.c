@@ -42,8 +42,8 @@
 #define CHAR_COMMENT                    '#'
 
 struct device {
-    char *name;
-    int read_speed;
+    char *name; // The name of the device
+    int read_speed; // The read speed of the device
     int write_speed;
     struct process *queue_head;
     struct process *queue_tail;
