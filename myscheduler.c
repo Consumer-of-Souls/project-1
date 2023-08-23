@@ -42,30 +42,34 @@
 #define CHAR_COMMENT                    '#'
 
 struct device {
+    // A struct to represent a device
     char *name; // The name of the device
     int read_speed; // The read speed of the device
-    int write_speed;
-    struct process *queue_head;
-    struct process *queue_tail;
-    struct device *next;
+    int write_speed; // The write speed of the device
+    struct process *queue_head; // A pointer to the head of the queue of processes waiting to use the device
+    struct process *queue_tail; // A pointer to the tail of the queue of processes waiting to use the device
+    struct device *next; // A pointer to the next device in the linked list
 };
 
-struct process {
-    struct command *command;
-    int time;
-    int num_children;
-    struct process *parent;
-    struct process *next;
+struct process { 
+    // A struct to represent a process
+    struct command *command; // A pointer to the command that the process is executing
+    int time; // The time that the process has been running for
+    int num_children; // The number of children that the process has
+    struct process *parent; // A pointer to the parent of the process
+    struct process *next; // A pointer to the next process in the linked list
 };
 
 struct command {
-    char *name;
-    struct syscall *queue_head; 
-    struct syscall *queue_tail;
-    struct command *next;
+    // A struct to represent a command
+    char *name; // The name of the command
+    struct syscall *queue_head; // A pointer to the head of the queue of syscalls that the command needs to execute
+    struct syscall *queue_tail; // A pointer to the tail of the queue of syscalls that the command needs to execute
+    struct command *next; // A pointer to the next command in the linked list
 };
 
 enum syscall_types {
+    // An enum to represent the type of a syscall
     SPAWN,
     READ,
     WRITE,
@@ -75,18 +79,20 @@ enum syscall_types {
 };
 
 struct syscall {
-    int time;
-    enum syscall_types type;
-    struct device *device;
-    struct command *command;
-    int data;
-    struct syscall *next;
+    // A struct to represent a syscall
+    int time; // The time that the syscall needs to be executed (cumulative)
+    enum syscall_types type; // The type of the syscall
+    struct device *device; // A pointer to the device that the syscall needs to use
+    struct command *command; // A pointer to the command that the syscall needs to spawn
+    int data; // The data that the syscall needs to read or write
+    struct syscall *next; // A pointer to the next syscall in the linked list
 };
 
 struct sleeping {
-    struct process *process;
-    int time;
-    struct sleeping *next;
+    // A struct to represent a sleeping process or the process that is using the bus
+    struct process *process; // A pointer to the process that is sleeping or using the bus
+    int time; // The time at which the process will wake up or finish using the bus
+    struct sleeping *next; // A pointer to the next sleeping process in the linked list
 };
 
 struct device *device1 = NULL; // A pointer to the first device
@@ -348,7 +354,7 @@ void read_commands(char argv0[], char filename[]) {
 //  ----------------------------------------------------------------------
 
 void execute_commands(void) {
-
+    //Need to check current running process, the sleeping processes and the process on the data-bus
 }
 
 //  ----------------------------------------------------------------------
