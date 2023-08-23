@@ -53,7 +53,6 @@ struct device {
 struct process {
     struct command *command;
     int time;
-    int sycall_index;
     int num_children;
     struct process *parent;
     struct process *next;
@@ -146,7 +145,6 @@ int create_process(struct command *command, struct process *parent) {
     struct process *new_process = malloc(sizeof(struct process));
     new_process->command = command;
     new_process->time = 0;
-    new_process->sycall_index = 0;
     new_process->num_children = 0;
     new_process->parent = parent;
     new_process->next = NULL;
