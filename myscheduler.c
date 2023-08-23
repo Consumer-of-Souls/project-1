@@ -162,6 +162,7 @@ void read_commands(char argv0[], char filename[]) {
         return;
     }
     char line[100];
+    int command_index = -1;
     while (fgets(line, sizeof(line), file) != NULL) {
         if (line[0] == CHAR_COMMENT || line[0] == '\n') {
             continue; // Skip comment lines and empty lines
@@ -180,6 +181,12 @@ void read_commands(char argv0[], char filename[]) {
                         break;
                     }
                 }
+                if (syscall == NULL) {
+                    num_commands++;
+                    commands = realloc(commands, sizeof(struct command *) * num_commands);
+                    commands[num_commands-1] = create_command(name, NULL, 0);
+                    syscall = create_syscall(time, SPAWN, NULL, commands[num_commands-1], 0);
+                }
             } else if (strcmp(type, "sleep") == 0) {
                 int data;
                 sscanf(line, "%dusecs %s %dusecs", &time, type, &data);
@@ -195,16 +202,26 @@ void read_commands(char argv0[], char filename[]) {
                 printf("Invalid syscall: %s\n", type);
             }
             if (syscall != NULL) {
-                commands[num_commands-1]->num_syscalls++;
-                commands[num_commands-1]->syscalls = realloc(commands[num_commands-1]->syscalls, sizeof(struct syscall *) * commands[num_commands-1]->num_syscalls);
-                commands[num_commands-1]->syscalls[commands[num_commands-1]->num_syscalls-1] = syscall;
+                commands[command_index]->num_syscalls++;
+                commands[command_index]->syscalls = realloc(commands[command_index]->syscalls, sizeof(struct syscall *) * commands[command_index]->num_syscalls);
+                commands[command_index]->syscalls[commands[command_index]->num_syscalls-1] = syscall;
             }
         } else {
-            // Create new command and add it to the array
-            num_commands++;
             char *name;
             sscanf(line, "%s", name);
-            commands[num_commands-1] = create_command(name, NULL, 0);
+            command_index = -1;
+            for (int i=0; i<num_commands; i++) {
+                if (strcmp(commands[i]->name, name) == 0) {
+                    command_index = i;
+                    break;
+                }
+            }
+            if (command_index == -1) {
+                command_index = num_commands;
+                num_commands++;
+                commands = realloc(commands, sizeof(struct command *) * num_commands);
+                commands[command_index] = create_command(name, NULL, 0);
+            }            
         }
     }
     fclose(file);
