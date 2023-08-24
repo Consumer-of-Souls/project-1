@@ -354,7 +354,7 @@ void read_commands(char argv0[], char filename[]) {
 //  ----------------------------------------------------------------------
 
 void execute_commands(void) {
-    //Need to check current running process, the sleeping processes and the process on the data-bus
+    //Need to check current running process, the sleeping processes and the process on the data-bus (keep sleeping and data-bus in the sleeping linked list)
 }
 
 //  ----------------------------------------------------------------------
