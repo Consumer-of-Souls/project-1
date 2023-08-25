@@ -377,6 +377,24 @@ int system_time = 0; // The current system time
 
 void execute_commands(void) {
     //Need to check current running process, the sleeping processes and the process on the data-bus (keep sleeping and data-bus in the sleeping linked list)
+    create_process(command1, NULL); // Create the first process
+    // Run the simulation until there are no more processes in ready, running, waiting or sleeping (as sleeping also contains the process on the data-bus)
+    while (ready1 != NULL || sleeping1 != NULL) { // Only need to check ready and sleeping as at the start of this loop there should be no running process, and the waiting queue cannot exist without processes in other queues
+        // Check if there are any ready processes that can be moved to running
+        if (ready1 != NULL) {
+            running = ready1;
+            ready1 = ready1->next;
+            running->next = NULL;
+            // Run the simulation until the running process is blocked, finishes its timeslice or exits (running will be set to NULL at the end of this loop)
+        } else {
+            // Nothing can be moved out of waiting if no process is running and can exit, so have to move the next process out of sleeping
+            system_time = sleeping1->time;
+            ready1 = sleeping1->process;
+            readyn = sleeping1->process;
+            sleeping1 = sleeping1->next;
+            ready1->next = NULL;
+        }
+    }   
 }
 
 //  ----------------------------------------------------------------------
