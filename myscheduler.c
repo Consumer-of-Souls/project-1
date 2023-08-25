@@ -374,6 +374,7 @@ void read_commands(char argv0[], char filename[]) {
 //  ----------------------------------------------------------------------
 
 int system_time = 0; // The current system time
+int cpu_time = 0; // How long the CPU has been running for
 
 void execute_commands(void) {
     //Need to check current running process, the sleeping processes and the process on the data-bus (keep sleeping and data-bus in the sleeping linked list)
