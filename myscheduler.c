@@ -70,12 +70,12 @@ struct command {
 
 enum syscall_types {
     // An enum to represent the type of a syscall
-    SPAWN,
-    READ,
-    WRITE,
-    SLEEP,
-    WAIT,
-    EXIT
+    SPAWN, // Spawn a new process
+    READ, // Read from a device
+    WRITE, // Write to a device
+    SLEEP, // Sleep for a certain amount of time
+    WAIT, // Wait for a child process to finish
+    EXIT // Exit the process
 };
 
 struct syscall {
@@ -84,7 +84,7 @@ struct syscall {
     enum syscall_types type; // The type of the syscall
     struct device *device; // A pointer to the device that the syscall needs to use
     struct command *command; // A pointer to the command that the syscall needs to spawn
-    int data; // The data that the syscall needs to read or write
+    int data; // The data that the syscall needs to read or write or the time that the process needs to sleep for
     struct syscall *next; // A pointer to the next syscall in the linked list
 };
 
@@ -113,245 +113,267 @@ struct sleeping *bus_process = NULL; // A pointer to the process that is using t
 
 int create_device(char *name, int read_speed, int write_speed) {
     // Adds a new device to the linked list of devices, ordered by read speed (descending)
-    struct device *new_device = malloc(sizeof(struct device));
-    new_device->name = name;
-    new_device->read_speed = read_speed;
-    new_device->write_speed = write_speed;
-    new_device->queue_head = NULL;
-    new_device->queue_tail = NULL;
-    new_device->next = NULL;
+    struct device *new_device = malloc(sizeof(struct device)); // Allocate memory for the new device
+    new_device->name = name; // Set the name of the new device
+    new_device->read_speed = read_speed; // Set the read speed of the new device
+    new_device->write_speed = write_speed; // Set the write speed of the new device
+    new_device->queue_head = NULL; // Set the head of the queue of processes waiting to use the device to NULL
+    new_device->queue_tail = NULL; // Set the tail of the queue of processes waiting to use the device to NULL
+    new_device->next = NULL; // Set the next device in the linked list to NULL
     if (device1 == NULL) {
-        device1 = new_device;
+        device1 = new_device; // If the linked list of devices is empty, set the first device to the new device
     } else {
-        struct device *current = device1;
-        struct device *previous = NULL;
+        struct device *current = device1; // Set the current device to the first device in the linked list
+        struct device *previous = NULL; // Set the previous device to NULL
         while (current != NULL) {
             if (read_speed > current->read_speed) {
+                // If the read speed of the new device is higher than the current device in the linked list, insert the new device before the current device
                 if (previous == NULL) {
-                    new_device->next = device1;
-                    device1 = new_device;
+                    // If the new device has the highest read speed, set it as the first device
+                    new_device->next = device1; // Set the next device of the new device to the first device
+                    device1 = new_device; // Set the first device to the new device
                 } else {
-                    previous->next = new_device;
-                    new_device->next = current;
+                    // If the new device has a read speed higher than the current device, but not the highest read speed, insert the new device before the current device
+                    previous->next = new_device; // Set the next device of the previous device to the new device
+                    new_device->next = current; // Set the next device of the new device to the current device
                 }
                 break;
             }
-            previous = current;
-            current = current->next;
+            previous = current; // Set the previous device to the current device
+            current = current->next; // Set the current device to the next device in the linked list
         }
         if (current == NULL) {
-            previous->next = new_device;
+            previous->next = new_device; // If the new device has the lowest read speed, set it as the last device
         }
     }
-    return 0;
+    return 0; // Return 0 to indicate success
 }
 
 int create_process(struct command *command, struct process *parent) {
     // Adds a new process to the end of the ready linked list
-    struct process *new_process = malloc(sizeof(struct process));
-    new_process->command = command;
-    new_process->time = 0;
-    new_process->num_children = 0;
-    new_process->parent = parent;
-    new_process->next = NULL;
+    struct process *new_process = malloc(sizeof(struct process)); // Allocate memory for the new process
+    new_process->command = command; // Set the command the new process is executing
+    new_process->time = 0; // Set the time of the new process to 0
+    new_process->num_children = 0; // Set the number of children of the new process to 0
+    new_process->parent = parent; // Set the parent of the new process
+    new_process->next = NULL; // Set the next process in the linked list to NULL
     if (ready1 == NULL) {
-        ready1 = new_process;
-        readyn = new_process;
+        ready1 = new_process; // If the linked list of ready processes is empty, set the first ready process to the new process
+        readyn = new_process; // Set the last ready process to the new process
     } else {
-        readyn->next = new_process;
-        readyn = new_process;
+        readyn->next = new_process; // Set the next process of the last ready process to the new process
+        readyn = new_process; // Set the last ready process to the new process
     }
-    return 0;
+    return 0; // Return 0 to indicate success
 }
 
 int create_command(char *name) {
     // Adds a new command to the end of the command linked list
-    struct command *new_command = malloc(sizeof(struct command));
-    new_command->name = name;
-    new_command->queue_head = NULL;
-    new_command->queue_tail = NULL;
-    new_command->next = NULL;
+    struct command *new_command = malloc(sizeof(struct command)); // Allocate memory for the new command
+    new_command->name = name; // Set the name of the new command
+    new_command->queue_head = NULL; // Set the head of the queue of syscalls that the command needs to execute to NULL
+    new_command->queue_tail = NULL; // Set the tail of the queue of syscalls that the command needs to execute to NULL
+    new_command->next = NULL; // Set the next command in the linked list to NULL
     if (command1 == NULL) {
-        command1 = new_command;
-        commandn = new_command;
+        command1 = new_command; // If the linked list of commands is empty, set the first command to the new command
+        commandn = new_command; // Set the last command to the new command
     } else {
-        commandn->next = new_command;
-        commandn = new_command;
+        commandn->next = new_command; // Set the next command of the last command to the new command
+        commandn = new_command; // Set the last command to the new command
     }
-    return 0;
+    return 0; // Return 0 to indicate success
 }
 
 int create_syscall(struct command *parent_command, int time, enum syscall_types type, struct device *device, struct command *command, int data) {
     // Adds a new syscall to the end of the parent command's syscall linked list
-    struct syscall *new_syscall = malloc(sizeof(struct syscall));
-    new_syscall->time = time;
-    new_syscall->type = type;
-    new_syscall->device = device;
-    new_syscall->command = command;
-    new_syscall->data = data;
-    new_syscall->next = NULL;
+    struct syscall *new_syscall = malloc(sizeof(struct syscall)); // Allocate memory for the new syscall
+    new_syscall->time = time; // Set the time the syscall takes to execute
+    new_syscall->type = type; // Set the type of the syscall
+    new_syscall->device = device; // Set the device that the syscall needs to use
+    new_syscall->command = command; // Set the command that the syscall needs to spawn
+    new_syscall->data = data; // Set the data that the syscall needs to read or write or the time that the process needs to sleep for
+    new_syscall->next = NULL; // Set the next syscall in the linked list to NULL
     if (parent_command->queue_head == NULL) {
-        parent_command->queue_head = new_syscall;
-        parent_command->queue_tail = new_syscall;
+        parent_command->queue_head = new_syscall; // If the linked list of syscalls for the parent command is empty, set the head of the queue to the new syscall
+        parent_command->queue_tail = new_syscall; // Set the tail of the queue to the new syscall
     } else {
-        parent_command->queue_tail->next = new_syscall;
-        parent_command->queue_tail = new_syscall;
+        parent_command->queue_tail->next = new_syscall; // Set the next syscall of the tail of the parent command's queue to the new syscall
+        parent_command->queue_tail = new_syscall; // Set the tail of the queue to the new syscall
     }
-    return 0;
+    return 0; // Return 0 to indicate success
 }
 
 int create_sleeping(struct process *process, int time) {
     // Adds a new sleeping process to the sleeping linked list in order of time (ascending)
-    struct sleeping *new_sleeping = malloc(sizeof(struct sleeping));
-    new_sleeping->process = process;
-    new_sleeping->time = time;
-    new_sleeping->next = NULL;
+    struct sleeping *new_sleeping = malloc(sizeof(struct sleeping)); // Allocate memory for the new sleeping process
+    new_sleeping->process = process; // Set the process that is sleeping
+    new_sleeping->time = time; // Set the time at which the process will wake up
+    new_sleeping->next = NULL; // Set the next sleeping process in the linked list to NULL
     if (sleeping1 == NULL) {
-        sleeping1 = new_sleeping;
+        sleeping1 = new_sleeping; // If the linked list of sleeping processes is empty, set the first sleeping process to the new sleeping process
     } else {
-        struct sleeping *current = sleeping1;
-        struct sleeping *previous = NULL;
+        struct sleeping *current = sleeping1; // Set the current sleeping process to the first sleeping process in the linked list
+        struct sleeping *previous = NULL; // Set the previous sleeping process to NULL
         while (current != NULL) {
             if (time < current->time) {
+                // If the time of the new sleeping process is lower than the current sleeping process in the linked list, insert the new sleeping process before the current sleeping process
                 if (previous == NULL) {
-                    new_sleeping->next = sleeping1;
-                    sleeping1 = new_sleeping;
+                    // If the new sleeping process has the lowest time, set it as the first sleeping process
+                    new_sleeping->next = sleeping1; // Set the next sleeping process of the new sleeping process to the first sleeping process
+                    sleeping1 = new_sleeping; // Set the first sleeping process to the new sleeping process
                 } else {
-                    previous->next = new_sleeping;
-                    new_sleeping->next = current;
+                    // If the new sleeping process has a time lower than the current sleeping process, but not the lowest time, insert the new sleeping process before the current sleeping process
+                    previous->next = new_sleeping; // Set the next sleeping process of the previous sleeping process to the new sleeping process
+                    new_sleeping->next = current; // Set the next sleeping process of the new sleeping process to the current sleeping process
                 }
                 break;
             }
-            previous = current;
-            current = current->next;
+            previous = current; // Set the previous sleeping process to the current sleeping process
+            current = current->next; // Set the current sleeping process to the next sleeping process in the linked list
         }
         if (current == NULL) {
-            previous->next = new_sleeping;
+            previous->next = new_sleeping; // If the new sleeping process has the highest time, set it as the last sleeping process
         }
     }
-    return 0;
+    return 0; // Return 0 to indicate success
 }
 
-int time_quantum = DEFAULT_TIME_QUANTUM;
+int time_quantum = DEFAULT_TIME_QUANTUM; // The time quantum of the system
 
 void read_sysconfig(char argv0[], char filename[]) {
-    FILE *file = fopen(filename, "r");
+    // Reads the sysconfig file and creates the devices and sets the time quantum
+    FILE *file = fopen(filename, "r"); // Open the sysconfig file
     if (file == NULL) {
-        printf("Failed to open file: %s\n", filename);
+        printf("Failed to open file: %s\n", filename); // Print an error message if the file cannot be opened
         return;
     }
-    char line[100];
+    char line[100]; // A string to store each line of the file
     while (fgets(line, sizeof(line), file) != NULL) {
+        // Read each line of the file
         if (line[0] == CHAR_COMMENT || line[0] == '\n') {
             continue; // Skip comment lines and empty lines
         }
-        char *type = malloc(12);
-        sscanf(line, "%s", type);
+        char *type = malloc(12); // A string to store the type (device or timequantum)
+        sscanf(line, "%s", type); // Read the type from the line
         if (strcmp(type, "device") == 0) {
-            char *name = malloc(MAX_DEVICE_NAME+1);
-            int read_speed;
-            int write_speed;
-            sscanf(line, "%s %s %dBps %dBps", type, name, &read_speed, &write_speed);
-            create_device(name, read_speed, write_speed);
+            // If the type is device, create a new device
+            char *name = malloc(MAX_DEVICE_NAME+1); // A string to store the name of the device
+            int read_speed; // An int to store the read speed of the device
+            int write_speed; // An int to store the write speed of the device
+            sscanf(line, "%s %s %dBps %dBps", type, name, &read_speed, &write_speed); // Read the name, read speed and write speed from the line
+            create_device(name, read_speed, write_speed); // Create the device
         } else if (strcmp(type, "timequantum") == 0) {
-            int time;
-            sscanf(line, "%s %d", type, &time);
-            time_quantum = time;
+            // If the type is timequantum, set the time quantum
+            int time; // An int to store the time quantum
+            sscanf(line, "%s %d", type, &time); // Read the time quantum from the line
+            time_quantum = time; // Set the time quantum
         } else {
-            printf("Invalid sysconfig: %s\n", type);
+            printf("Invalid sysconfig: %s\n", type); // Print an error message if the type is invalid
         }
     }
-    fclose(file);
+    fclose(file); // Close the sysconfig file
 }
 
 void read_commands(char argv0[], char filename[]) {
-    FILE *file = fopen(filename, "r");
+    // Reads the command file and creates the commands and their syscalls
+    FILE *file = fopen(filename, "r"); // Open the command file
     if (file == NULL) {
-        printf("Failed to open file: %s\n", filename);
+        printf("Failed to open file: %s\n", filename); // Print an error message if the file cannot be opened
         return;
     }
-    char line[100];
-    struct command *current_command = NULL;
+    char line[100]; // A string to store each line of the file
+    struct command *current_command = NULL; // A pointer to the current command
     while (fgets(line, sizeof(line), file) != NULL) {
+        // Read each line of the file
         if (line[0] == CHAR_COMMENT || line[0] == '\n') {
             continue; // Skip comment lines and empty lines
         }
         if (line[0] == '\t') {
-            int time;
-            char *type = malloc(6);                                             
-            sscanf(line, "%dusecs %s", &time, type);
+            // If the line starts with a tab, create a new syscall
+            int time; // An int to store the time that the syscall needs to be executed
+            char *type = malloc(6); // A string to store the type of the syscall                                     
+            sscanf(line, "%dusecs %s", &time, type); // Read the time and type of the syscall from the line
             if (strcmp(type, "spawn") == 0) {
-                char *name = malloc(MAX_COMMAND_NAME+1);
-                sscanf(line, "%dusecs %s %s", &time, type, name);
-                // Check if the command already exists
-                struct command *command = command1;
+                // If the type is spawn, read the name of the command that needs to be spawned
+                char *name = malloc(MAX_COMMAND_NAME+1); // A string to store the name of the command
+                sscanf(line, "%dusecs %s %s", &time, type, name); // Read the name of the command from the line
+                // Check if the command to be spawned already exists
+                struct command *command = command1; // Set command to the first command in the linked list
                 while (command != NULL) {
                     if (strcmp(command->name, name) == 0) {
-                        create_syscall(current_command, time, SPAWN, NULL, command, 0);
+                        // If the command already exists, create the syscall
+                        create_syscall(current_command, time, SPAWN, NULL, command, 0); // Create the syscall
                         break;
                     }
-                    command = command->next;
+                    command = command->next; // Set command to the next command in the linked list
                 }
                 if (command == NULL) {
-                    create_command(name);
-                    create_syscall(current_command, time, SPAWN, NULL, commandn, 0);
+                    // If the command does not exist, create the command and the syscall
+                    create_command(name); // Create the command
+                    create_syscall(current_command, time, SPAWN, NULL, commandn, 0); // Create the syscall
                 }
             } else if (strcmp(type, "read") == 0 || strcmp(type, "write") == 0) {
-                int data;
-                char *name = malloc(MAX_DEVICE_NAME+1);
-                sscanf(line, "%dusecs %s %s %dB", &time, type, name, &data);
-                // Check if the device already exists
-                struct device *device = device1;
+                // If the type is read or write, read the name of the device that needs to be read from or written to and the data that needs to be read or written
+                int data; // An int to store the data that needs to be read or written
+                char *name = malloc(MAX_DEVICE_NAME+1); // A string to store the name of the device
+                sscanf(line, "%dusecs %s %s %dB", &time, type, name, &data); // Read the name of the device and the data from the line
+                // Check if the device to be read from or written to exists
+                struct device *device = device1; // Set the current device to the first device in the linked list
                 while (device != NULL) {
                     if (strcmp(device->name, name) == 0) {
+                        // If the device exists, create the syscall
                         if (strcmp(type, "read") == 0) {
-                            create_syscall(current_command, time, READ, device, NULL, data);
+                            create_syscall(current_command, time, READ, device, NULL, data); // If the type is read, create a read syscall
                         } else {
-                            create_syscall(current_command, time, WRITE, device, NULL, data);
+                            create_syscall(current_command, time, WRITE, device, NULL, data); // If the type is write, create a write syscall
                         }
                         break;
                     }
-                    device = device->next;
+                    device = device->next; // Set the current device to the next device in the linked list
                 }
                 if (device == NULL) {
-                    printf("Device not found: %s\n", name);
+                    printf("Device not found: %s\n", name); // Print an error message if the device does not exist
                 }
             } else if (strcmp(type, "sleep") == 0) {
-                int data;
-                sscanf(line, "%dusecs %s %dusecs", &time, type, &data);
-                create_syscall(current_command, time, SLEEP, NULL, NULL, data);
-            } else if (strcmp(type, "wait") == 0 || strcmp(type, "exit") == 0) {
-                sscanf(line, "%dusecs %s", &time, type);
-                if (strcmp(type, "wait") == 0) {
-                    create_syscall(current_command, time, WAIT, NULL, NULL, 0);
-                } else {
-                    create_syscall(current_command, time, EXIT, NULL, NULL, 0);
-                }
+                // If the type is sleep, read the time that the process needs to sleep for
+                int data; // An int to store the time that the process needs to sleep for
+                sscanf(line, "%dusecs %s %dusecs", &time, type, &data); // Read the time that the process needs to sleep for from the line
+                create_syscall(current_command, time, SLEEP, NULL, NULL, data); // Create the syscall
+            } else if (strcmp(type, "wait") == 0) {
+                // If the type is wait, create the syscall
+                create_syscall(current_command, time, WAIT, NULL, NULL, 0);
+            } else if (strcmp(type, "exit") == 0) {
+                // If the type is exit, create the syscall
+                create_syscall(current_command, time, EXIT, NULL, NULL, 0);
             } else {
-                printf("Invalid syscall: %s\n", type);
+                printf("Invalid syscall: %s\n", type); // Print an error message if the type is invalid
             }
         } else {
-            char *name = malloc(MAX_COMMAND_NAME+1);
-            sscanf(line, "%s", name);
+            // If the line does not start with a tab, create a new command
+            char *name = malloc(MAX_COMMAND_NAME+1); // A string to store the name of the command
+            sscanf(line, "%s", name); // Read the name of the command from the line
             // Check if the command already exists
-            struct command *command = command1;
+            struct command *command = command1; // Set command to the first command in the linked list
             while (command != NULL) {
                 if (strcmp(command->name, name) == 0) {
-                    current_command = command;
+                    current_command = command; // If the command already exists, set the current command to the command
                     break;
                 }
-                command = command->next;
+                command = command->next; // Set command to the next command in the linked list
             }
             if (command == NULL) {
-                create_command(name);
-                current_command = commandn;
+                // If the command does not exist, create the command
+                create_command(name); // Create the command
+                current_command = commandn; // Set the current command to the command
             }      
         }
     }
-    fclose(file);
+    fclose(file); // Close the command file
 }
 
 //  ----------------------------------------------------------------------
+
+int system_time = 0; // The current system time
 
 void execute_commands(void) {
     //Need to check current running process, the sleeping processes and the process on the data-bus (keep sleeping and data-bus in the sleeping linked list)
@@ -362,8 +384,9 @@ void execute_commands(void) {
 int main(int argc, char *argv[]) {
     // ENSURE THAT WE HAVE THE CORRECT NUMBER OF COMMAND-LINE ARGUMENTS
     if(argc != 3) {
-        printf("Usage: %s sysconfig-file command-file\n", argv[0]);
-        exit(EXIT_FAILURE);
+        printf("Usage: %s sysconfig-file command-file\n", argv[0]); // Print an error message if the number of command-line arguments is incorrect
+        exit(EXIT_FAILURE); // EXIT WITH A NON-ZERO EXIT CODE TO INDICATE AN ERROR
+        return 1; // Return 1 to indicate an error
     }
 
     // READ THE SYSTEM CONFIGURATION FILE
@@ -399,8 +422,8 @@ int main(int argc, char *argv[]) {
     // PRINT THE PROGRAM'S RESULTS
     printf("measurements  %i  %i\n", 0, 0);
 
-    exit(EXIT_SUCCESS);
-    return 0;
+    exit(EXIT_SUCCESS); // EXIT WITH A SUCCESSFUL RETURN CODE
+    return 0; // Return 0 to indicate success
 }
 
 //  vim: ts=8 sw=4
