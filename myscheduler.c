@@ -103,6 +103,7 @@ struct sleeping {
     struct process *process; // A pointer to the process that is sleeping or using the bus
     int time; // The time at which the process will wake up or finish using the bus
     struct sleeping *next; // A pointer to the next sleeping process in the linked list
+    enum sleeping_states state; // The state of the sleeping process
 };
 
 struct device *device1 = NULL; // A pointer to the first device
@@ -212,11 +213,12 @@ int create_syscall(struct command *parent_command, int time, enum syscall_types 
     return 0; // Return 0 to indicate success
 }
 
-int create_sleeping(struct process *process, int time) {
+int create_sleeping(struct process *process, int time, enum sleeping_states state) {
     // Adds a new sleeping process to the sleeping linked list in order of time (ascending)
     struct sleeping *new_sleeping = malloc(sizeof(struct sleeping)); // Allocate memory for the new sleeping process
     new_sleeping->process = process; // Set the process that is sleeping
     new_sleeping->time = time + system_time; // Set the time that the process will wake up
+    new_sleeping->state = state; // Set the state of the sleeping process
     new_sleeping->next = NULL; // Set the next sleeping process in the linked list to NULL
     if (sleeping1 == NULL) {
         sleeping1 = new_sleeping; // If the linked list of sleeping processes is empty, set the first sleeping process to the new sleeping process
@@ -388,6 +390,9 @@ int cpu_time = 0; // How long the CPU has been running for
 int move_to_bus(void) {
     // Move the first process on the device with the highest read speed to the bus (have to calculate the sleep time of the process)
     struct device *device = device1; // Set device to the first device in the linked list
+    if (bus_process != NULL) {
+        return 1; // Return 1 to indicate failure
+    }
     while (device != NULL) {
         if (device->queue_head != NULL) {
             // If the device has a process waiting to use it, move the process to the bus
@@ -409,27 +414,55 @@ int move_to_bus(void) {
             // If the current syscall of the process that is using the bus is a write syscall, calculate the time it takes to write the data
             sleep_time = syscall->data / syscall->device->write_speed * 1000000 + TIME_ACQUIRE_BUS;
         }
-        create_sleeping(bus_process, sleep_time); // Create the sleeping process
-    }
-}
-
-int move_from_sleeping(void) {
-    system_time = sleeping1->time; // Set the system time to the time of the first sleeping process
-    if (ready1 == NULL) {
-        ready1 = sleeping1->process; // If the linked list of ready processes is empty, set the first ready process to the first sleeping process
-    } else {
-        readyn->next = sleeping1->process; // Set the next process of the last ready process to the first sleeping process
-    }
-    readyn = sleeping1->process; // Set the last ready process to the first sleeping process
-    sleeping1 = sleeping1->next; // Set the first sleeping process to the next sleeping process
-    readyn->next = NULL; // Set the next process of the last ready process to NULL
-    if (readyn == bus_process) {
-        move_to_bus();
+        create_sleeping(bus_process, sleep_time, SLEEPING); // Create the sleeping process
     }
     return 0; // Return 0 to indicate success
 }
 
-// NEED TO TAKE INTO ACCOUNT THE TIME IT TAKES TO TRANSITION BETWEEN CORE STATES (USE A NEW ATTRIBUTE FOR THE SLEEPER STRUCT)
+int move_from_sleeping(void) {
+    system_time = sleeping1->time; // Set the system time to the time of the first sleeping process
+    struct process *process = sleeping1->process; // Set process to the first sleeping process
+    if (sleeping1->state == SLEEPING) {
+        create_sleeping(process, TIME_CORE_STATE_TRANSITIONS, TOREADY); // Create the sleeping process
+        if (process == bus_process) {
+            bus_process = NULL; // Set the process that is using the bus to NULL
+            move_to_bus();
+        }
+    } else if (sleeping1->state == TOIO) {
+        if (process->syscall->device->queue_head == NULL) {
+            // If the device is empty, move the process to the device
+            process->syscall->device->queue_head = process; // Set the first process in the queue of processes waiting to use the device to the process
+        } else {
+            // If the device is not empty, move the process to the end of the queue of processes waiting to use the device
+            process->syscall->device->queue_tail->next = process; // Set the next process of the last process in the queue of processes waiting to use the device to the process
+        }
+        process->syscall->device->queue_tail = process; // Set the last process in the queue of processes waiting to use the device to the process
+        if (bus_process == NULL) {
+            move_to_bus();
+        }
+    } else if (sleeping1->state == TOSLEEP) {
+        create_sleeping(process, process->syscall->data, SLEEPING); // Create the sleeping process
+    } else if (sleeping1->state == TOWAIT) {
+        if (process->num_children == 0) {
+            create_sleeping(process, TIME_CORE_STATE_TRANSITIONS, TOREADY); // Create the sleeping process
+        }
+    } else if (sleeping1->state == TOREADY) {
+        if (ready1 == NULL) {
+            ready1 = process; // Set the first ready process to the process
+        } else {
+            readyn->next = process; // Set the next process of the last ready process to the process
+        }
+        readyn = process; // Set the last ready process to the process
+    } else {
+        printf("Invalid sleeping state: %d\n", sleeping1->state); // Print an error message if the state is invalid
+        return 1; // Return 1 to indicate failure
+    }
+    struct sleeping *temp = sleeping1->next; // Set the first sleeping process to the next sleeping process
+    free(sleeping1); // Free the memory of the first sleeping process
+    sleeping1 = temp; // Set the first sleeping process to the next sleeping process
+    return 0; // Return 0 to indicate success
+}
+
 // Clarifications: The bus can't be requested before the process on it has exited, the next ready process can't perform a context switch before the current process has finished (no preemptive scheduling)
 
 void execute_commands(void) {
@@ -470,26 +503,16 @@ void execute_commands(void) {
                         syscall = syscall->next; // Set syscall to the next syscall of the running process
                         time_to_syscall = syscall->time - running->time + system_time; // Set the time at which the running process will reach the next syscall
                     } else if (syscall->type == READ || syscall->type == WRITE) {
-                        // If the syscall is read or write, move the process to the device
-                        if (syscall->device->queue_head == NULL) {
-                            // If the device is empty, move the process to the device
-                            syscall->device->queue_head = running; // Set the first process in the queue of processes waiting to use the device to the running process
-                        } else {
-                            // If the device is not empty, move the process to the end of the queue of processes waiting to use the device
-                            syscall->device->queue_tail->next = running; // Set the next process of the last process in the queue of processes waiting to use the device to the running process
-                        }
-                        syscall->device->queue_tail = running; // Set the last process in the queue of processes waiting to use the device to the running process
-                        if (bus_process == NULL) {
-                            move_to_bus();
-                        }
+                        create_sleeping(running, TIME_CORE_STATE_TRANSITIONS, TOIO); // Create the sleeping process
                         running = NULL; // Set the running process to NULL
                     } else if (syscall->type == SLEEP) {
                         // If the syscall is sleep, create the sleeping process
-                        create_sleeping(running, syscall->data); // Create the sleeping process
+                        create_sleeping(running, TIME_CORE_STATE_TRANSITIONS, TOSLEEP); // Create the sleeping process
                         running = NULL; // Set the running process to NULL
                     } else if (syscall->type == WAIT) {
                         // If the syscall is wait, check if the running process has any children
-                        if (running->num_children != 0) {
+                        if (running->num_children > 0) {
+                            create_sleeping(running, TIME_CORE_STATE_TRANSITIONS, TOWAIT); // Create the sleeping process
                             running = NULL; // Set the running process to NULL
                         } else {
                             syscall = syscall->next; // Set syscall to the next syscall of the running process
@@ -502,14 +525,7 @@ void execute_commands(void) {
                             running->parent->num_children--;
                             if (running->parent->num_children == 0) {
                                 // If the parent has no children, move the parent to ready
-                                if (ready1 == NULL) {
-                                    // If the linked list of ready processes is empty, set the first ready process to the parent
-                                    ready1 = running->parent;
-                                } else {
-                                    // If the linked list of ready processes is not empty, set the next process of the last ready process to the parent
-                                    readyn->next = running->parent;
-                                }
-                                readyn = running->parent; // Set the last ready process to the parent
+                                create_sleeping(running->parent, TIME_CORE_STATE_TRANSITIONS, TOREADY); // Create the sleeping process
                             }
                         }
                         // Free the memory for the running process (now exited)
