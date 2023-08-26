@@ -439,6 +439,7 @@ int move_from_sleeping(void) {
 
 // NEED TO TAKE INTO ACCOUNT THE TIME IT TAKES TO TRANSITION BETWEEN CORE STATES (USE A NEW ATTRIBUTE FOR THE SLEEPER STRUCT)
 // PROBABLY DON'T NEED A WAITING LIST, JUST NEED TO CHECK THE PARENT PROCESS UPON EXIT
+// Clarifications: The bus can't be requested before the process on it has exited, the next ready process can't perform a context switch before the current process has finished (no preemptive scheduling)
 
 void execute_commands(void) {
     //Need to check current running process, the sleeping processes and the process on the data-bus (keep sleeping and data-bus in the sleeping linked list)
