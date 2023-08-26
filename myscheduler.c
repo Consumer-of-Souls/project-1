@@ -207,7 +207,7 @@ int create_sleeping(struct process *process, int time) {
     // Adds a new sleeping process to the sleeping linked list in order of time (ascending)
     struct sleeping *new_sleeping = malloc(sizeof(struct sleeping)); // Allocate memory for the new sleeping process
     new_sleeping->process = process; // Set the process that is sleeping
-    new_sleeping->time = time + system_time + 2*TIME_CORE_STATE_TRANSITIONS; // Set the time that the process will wake up
+    new_sleeping->time = time + system_time; // Set the time that the process will wake up
     new_sleeping->next = NULL; // Set the next sleeping process in the linked list to NULL
     if (sleeping1 == NULL) {
         sleeping1 = new_sleeping; // If the linked list of sleeping processes is empty, set the first sleeping process to the new sleeping process
@@ -437,6 +437,9 @@ int move_from_sleeping(void) {
     return 0; // Return 0 to indicate success
 }
 
+// NEED TO TAKE INTO ACCOUNT THE TIME IT TAKES TO TRANSITION BETWEEN CORE STATES (USE A NEW ATTRIBUTE FOR THE SLEEPER STRUCT)
+// PROBABLY DON'T NEED A WAITING LIST, JUST NEED TO CHECK THE PARENT PROCESS UPON EXIT
+
 void execute_commands(void) {
     //Need to check current running process, the sleeping processes and the process on the data-bus (keep sleeping and data-bus in the sleeping linked list)
     create_process(command1, NULL); // Create the first process
@@ -456,38 +459,68 @@ void execute_commands(void) {
                 // Need to check the next awake sleeping process (includes the databus), the time quantum and the next syscall for the running process
                 if (sleeping1 != NULL && sleeping1->time < timeslice_finish && sleeping1->time < time_to_syscall) {
                     // If the next awake sleeping process will wake up before the running process finishes its timeslice or reaches its next syscall, move the next awake sleeping process to ready
+                    cpu_time += sleeping1->time - system_time; // Add the time that the CPU has been running for to the CPU time
                     move_from_sleeping();
                 } else if (time_to_syscall < timeslice_finish) {
                     // If the running process will reach its next syscall before it finishes its timeslice, execute the syscall
+                    cpu_time += time_to_syscall - system_time; // Add the time that the CPU has been running for to the CPU time
                     system_time = syscall->time; // Set the system time to the time of the syscall
                     if (syscall->type == SPAWN) {
                         // If the syscall is spawn, create the process
                         create_process(syscall->command, running); // Create the process
                         running->num_children++; // Increment the number of children of the running process
                     } else if (syscall->type == READ || syscall->type == WRITE) {
-                        // If the syscall is read or write, move the process to the device with the highest read speed
-                        struct device *device = device1; // Set device to the first device in the linked list
-                        while (device != NULL) {
-                            if (strcmp(device->name, syscall->device->name) == 0) {
-                                // If the device is the device that the syscall needs to use, move the process to the device
-                                if (device->queue_head == NULL) {
-                                    device->queue_head = running; // If the queue of processes waiting to use the device is empty, set the first process in the queue to the running process
-                                } else {
-                                    device->queue_tail->next = running; // Set the next process of the last process in the queue to the running process
-                                }
-                                device->queue_tail = running; // Set the last process in the queue to the running process
-                                running = NULL; // Set the running process to NULL
-                                break;
-                            }
-                            device = device->next; // Set device to the next device in the linked list
+                        // If the syscall is read or write, move the process to the device
+                        if (syscall->device->queue_head == NULL) {
+                            // If the device is empty, move the process to the device
+                            syscall->device->queue_head = running; // Set the first process in the queue of processes waiting to use the device to the running process
+                        } else {
+                            // If the device is not empty, move the process to the end of the queue of processes waiting to use the device
+                            syscall->device->queue_tail->next = running; // Set the next process of the last process in the queue of processes waiting to use the device to the running process
                         }
-                        if (device == NULL) {
-                            printf("Device not found: %s\n", syscall->device->name); // Print an error message if the device does not exist
-                        }
+                        syscall->device->queue_tail = running; // Set the last process in the queue of processes waiting to use the device to the running process
                     } else if (syscall->type == SLEEP) {
                         // If the syscall is sleep, create the sleeping process
                         create_sleeping(running, syscall->data); // Create the sleeping process
-
+                        running = NULL; // Set the running process to NULL
+                    } else if (syscall->type == WAIT) {
+                        // If the syscall is wait, check if the running process has any children
+                        if (running->num_children == 0) {
+                            // If the running process has no children, move the running process to ready
+                            if (ready1 == NULL) {
+                                // If the linked list of ready processes is empty, set the first ready process to the running process
+                                ready1 = running;
+                            } else {
+                                // If the linked list of ready processes is not empty, set the next process of the last ready process to the running process
+                                readyn->next = running;
+                            }
+                            readyn = running; // Set the last ready process to the running process
+                            running = NULL; // Set the running process to NULL
+                        } else {
+                            // If the running process has children, move the running process to waiting
+                            if (waiting1 == NULL) {
+                                // If the linked list of waiting processes is empty, set the first waiting process to the running process
+                                waiting1 = running;
+                            } else {
+                                running->next = waiting1; // Set the next process of the running process to the first waiting process
+                                waiting1 = running; // Set the first waiting process to the running process
+                            }
+                            running = NULL; // Set the running process to NULL
+                        }
+                    } else if (syscall->type == EXIT) {
+                        // If the syscall is exit, check if the running process has a parent
+                        
+                    }
+                } else {
+                    // If the running process will finish its timeslice before it reaches its next syscall, move the running process to ready (if the ready queue isn't empty)
+                    cpu_time += timeslice_finish - system_time; // Add the time that the CPU has been running for to the CPU time
+                    system_time = timeslice_finish; // Set the system time to the time at which the running process will finish its timeslice
+                    if (ready1 == NULL) {
+                        timeslice_finish = system_time + time_quantum; // If the ready queue is empty, set the time at which the running process will finish its timeslice to the time at which the next process will finish its timeslice
+                    } else {
+                        readyn->next = running; // Set the next process of the last ready process to the running process
+                        readyn = running; // Set the last ready process to the running process
+                        running = NULL; // Set the running process to NULL
                     }
                 }
             }
@@ -497,6 +530,7 @@ void execute_commands(void) {
         }
     }   
 }
+
 
 //  ----------------------------------------------------------------------
 
