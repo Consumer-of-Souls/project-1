@@ -456,6 +456,8 @@ int move_from_sleeping(void) {
     } else if (sleeping1->state == TOWAIT) {
         if (process->num_children == 0) {
             create_sleeping(process, TIME_CORE_STATE_TRANSITIONS, TOREADY); // Create the sleeping process
+        } else {
+            printf("Process %s moved to waiting queue at time %d\n", process->command->name, system_time); // Print a message to indicate that the process has moved to the waiting queue
         }
     } else if (sleeping1->state == TOREADY) {
         printf("Process %s moved to ready queue at time %d\n", process->command->name, system_time); // Print a message to indicate that the process has moved to the ready queue
