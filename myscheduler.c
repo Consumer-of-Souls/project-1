@@ -452,10 +452,8 @@ int move_from_sleeping(void) {
             move_to_bus();
         }
     } else if (sleeping1->state == TOSLEEP) {
-        printf("Process %s moved to sleep queue at time %d\n", process->command->name, system_time); // Print a message to indicate that the process has moved to the sleep queue
         create_sleeping(process, process->syscall->data, SLEEPING); // Create the sleeping process
     } else if (sleeping1->state == TOWAIT) {
-        printf("Process %s moved to wait queue at time %d\n", process->command->name, system_time); // Print a message to indicate that the process has moved to the wait queue
         if (process->num_children == 0) {
             create_sleeping(process, TIME_CORE_STATE_TRANSITIONS, TOREADY); // Create the sleeping process
         }
