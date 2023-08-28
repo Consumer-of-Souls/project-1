@@ -125,17 +125,22 @@ struct sleeping *sleeping1 = NULL; // A pointer to the first sleeping process
 
 struct process *bus_process = NULL; // A pointer to the process that is using the bus
 
+void *malloc_data(size_t size) {
+    void *new_data = malloc(size); // Allocate memory for the new data
+    while (new_data == NULL) {
+        // If malloc fails, retry
+        fprintf(stderr, "Error: malloc failed, retrying...\n");
+        new_data = malloc(size); // Allocate memory for the new data
+    }
+    return new_data;
+}
+
 int system_time = 0; // The current system time
 int cpu_time = 0; // How long the CPU has been running for
 
 int create_device(char *name, int read_speed, int write_speed) {
     // Adds a new device to the linked list of devices, ordered by read speed (descending)
-    struct device *new_device = malloc(sizeof(struct device)); // Allocate memory for the new device
-    while (new_device == NULL) {
-        // If malloc fails, retry
-        fprintf(stderr, "Error: malloc failed, retrying...\n");
-        new_device = malloc(sizeof(struct device)); // Allocate memory for the new device
-    }
+    struct device *new_device = (struct device *) malloc_data(sizeof(struct device)); // Allocate memory for the new device
     new_device->name = name; // Set the name of the new device
     new_device->read_speed = read_speed; // Set the read speed of the new device
     new_device->write_speed = write_speed; // Set the write speed of the new device
@@ -173,12 +178,7 @@ int create_device(char *name, int read_speed, int write_speed) {
 
 int create_process(struct command *command, struct process *parent) {
     // Adds a new process to the end of the ready linked list
-    struct process *new_process = malloc(sizeof(struct process)); // Allocate memory for the new process
-    while (new_process == NULL) {
-        // If malloc fails, retry
-        fprintf(stderr, "Error: malloc failed, retrying...\n");
-        new_process = malloc(sizeof(struct process)); // Allocate memory for the new process
-    }
+    struct process *new_process = (struct process *) malloc_data(sizeof(struct process)); // Allocate memory for the new process
     new_process->command = command; // Set the command the new process is executing
     new_process->syscall = NULL; // Set the syscall the new process is executing to NULL
     new_process->time = 0; // Set the time of the new process to 0
@@ -198,12 +198,7 @@ int create_process(struct command *command, struct process *parent) {
 
 int create_command(char *name) {
     // Adds a new command to the end of the command linked list
-    struct command *new_command = malloc(sizeof(struct command)); // Allocate memory for the new command
-    while (new_command == NULL) {
-        // If malloc fails, retry
-        fprintf(stderr, "Error: malloc failed, retrying...\n");
-        new_command = malloc(sizeof(struct command)); // Allocate memory for the new command
-    }
+    struct command *new_command = (struct command *) malloc_data(sizeof(struct command)); // Allocate memory for the new command
     new_command->name = name; // Set the name of the new command
     new_command->queue_head = NULL; // Set the head of the queue of syscalls that the command needs to execute to NULL
     new_command->queue_tail = NULL; // Set the tail of the queue of syscalls that the command needs to execute to NULL
@@ -220,12 +215,7 @@ int create_command(char *name) {
 
 int create_syscall(struct command *parent_command, int time, enum syscall_types type, struct device *device, struct command *command, int data) {
     // Adds a new syscall to the end of the parent command's syscall linked list
-    struct syscall *new_syscall = malloc(sizeof(struct syscall)); // Allocate memory for the new syscall
-    while (new_syscall == NULL) {
-        // If malloc fails, retry
-        fprintf(stderr, "Error: malloc failed, retrying...\n");
-        new_syscall = malloc(sizeof(struct syscall)); // Allocate memory for the new syscall
-    }
+    struct syscall *new_syscall = (struct syscall *) malloc_data(sizeof(struct syscall)); // Allocate memory for the new syscall
     new_syscall->time = time; // Set the time the syscall takes to execute
     new_syscall->type = type; // Set the type of the syscall
     new_syscall->device = device; // Set the device that the syscall needs to use
@@ -249,12 +239,7 @@ int create_sleeping(struct process *process, int time, enum sleeping_states stat
     } else {
         printf("Process %s moved to %s at time %d\n", process->command->name, sleeping_states[state], system_time); // Print a message to indicate that the process has moved to the state
     }
-    struct sleeping *new_sleeping = malloc(sizeof(struct sleeping)); // Allocate memory for the new sleeping process
-    while (new_sleeping == NULL) {
-        // If malloc fails, retry
-        fprintf(stderr, "Error: malloc failed, retrying...\n");
-        new_sleeping = malloc(sizeof(struct sleeping)); // Allocate memory for the new sleeping process
-    }
+    struct sleeping *new_sleeping = (struct sleeping *) malloc_data(sizeof(struct sleeping)); // Allocate memory for the new sleeping process
     new_sleeping->process = process; // Set the process that is sleeping
     new_sleeping->time = time + system_time; // Set the time that the process will wake up
     new_sleeping->state = state; // Set the state of the sleeping process
@@ -303,19 +288,11 @@ void read_sysconfig(char argv0[], char filename[]) {
         if (line[0] == CHAR_COMMENT || line[0] == '\n') {
             continue; // Skip comment lines and empty lines
         }
-        char *type = malloc(12); // A string to store the type (device or timequantum)
-        while (type == NULL) {
-            fprintf(stderr, "Error: malloc failed, retrying...\n");
-            type = malloc(12); // A string to store the type (device or timequantum)
-        }
+        char *type = (char *) malloc_data(12); // A string to store the type of the device
         sscanf(line, "%s", type); // Read the type from the line
         if (strcmp(type, "device") == 0) {
             // If the type is device, create a new device
-            char *name = malloc(MAX_DEVICE_NAME+1); // A string to store the name of the device
-            while (name == NULL) {
-                fprintf(stderr, "Error: malloc failed, retrying...\n");
-                name = malloc(MAX_DEVICE_NAME+1); // A string to store the name of the device
-            }
+            char *name = (char *) malloc_data(MAX_DEVICE_NAME+1); // A string to store the name of the device
             int read_speed; // An int to store the read speed of the device
             int write_speed; // An int to store the write speed of the device
             sscanf(line, "%s %s %dBps %dBps", type, name, &read_speed, &write_speed); // Read the name, read speed and write speed from the line
@@ -349,19 +326,11 @@ void read_commands(char argv0[], char filename[]) {
         if (line[0] == '\t') {
             // If the line starts with a tab, create a new syscall
             int time; // An int to store the time that the syscall needs to be executed
-            char *type = malloc(6); // A string to store the type of the syscall    
-            while (type == NULL) {
-                fprintf(stderr, "Error: malloc failed, retrying...\n");
-                type = malloc(6); // A string to store the type of the syscall
-            }
+            char *type = (char *) malloc_data(6); // A string to store the type of the syscall
             sscanf(line, "%dusecs %s", &time, type); // Read the time and type of the syscall from the line
             if (strcmp(type, "spawn") == 0) {
                 // If the type is spawn, read the name of the command that needs to be spawned
-                char *name = malloc(MAX_COMMAND_NAME+1); // A string to store the name of the command
-                while (name == NULL) {
-                    fprintf(stderr, "Error: malloc failed, retrying...\n");
-                    name = malloc(MAX_COMMAND_NAME+1); // A string to store the name of the command
-                }
+                char *name = (char *) malloc_data(MAX_COMMAND_NAME+1); // A string to store the name of the command
                 sscanf(line, "%dusecs %s %s", &time, type, name); // Read the name of the command from the line
                 // Check if the command to be spawned already exists
                 struct command *command = command1; // Set command to the first command in the linked list
@@ -381,11 +350,7 @@ void read_commands(char argv0[], char filename[]) {
             } else if (strcmp(type, "read") == 0 || strcmp(type, "write") == 0) {
                 // If the type is read or write, read the name of the device that needs to be read from or written to and the data that needs to be read or written
                 int data; // An int to store the data that needs to be read or written
-                char *name = malloc(MAX_DEVICE_NAME+1); // A string to store the name of the device
-                while (name == NULL) {
-                    fprintf(stderr, "Error: malloc failed, retrying...\n");
-                    name = malloc(MAX_DEVICE_NAME+1); // A string to store the name of the device
-                }
+                char *name = (char *) malloc_data(MAX_DEVICE_NAME+1); // A string to store the name of the device
                 sscanf(line, "%dusecs %s %s %dB", &time, type, name, &data); // Read the name of the device and the data from the line
                 // Check if the device to be read from or written to exists
                 struct device *device = device1; // Set the current device to the first device in the linked list
@@ -420,11 +385,7 @@ void read_commands(char argv0[], char filename[]) {
             }
         } else {
             // If the line does not start with a tab, create a new command
-            char *name = malloc(MAX_COMMAND_NAME+1); // A string to store the name of the command
-            while (name == NULL) {
-                fprintf(stderr, "Error: malloc failed, retrying...\n");
-                name = malloc(MAX_COMMAND_NAME+1); // A string to store the name of the command
-            }
+            char *name = (char *) malloc_data(MAX_COMMAND_NAME+1); // A string to store the name of the command
             sscanf(line, "%s", name); // Read the name of the command from the line
             // Check if the command already exists
             struct command *command = command1; // Set command to the first command in the linked list
@@ -589,7 +550,7 @@ void execute_commands(void) {
                 } else if (time_to_syscall < timeslice_finish) {
                     // If the running process will reach its next syscall before it finishes its timeslice, execute the syscall
                     cpu_time += time_to_syscall - system_time; // Add the time that the CPU has been running for to the CPU time
-                    running->time += time_to_syscall - system_time; // Add the time that the CPU has been running for to the running process's time
+                    running->time = syscall->time; // Set the time of the running process to the time at which the running process will reach its next syscall
                     system_time = time_to_syscall; // Set the system time to the time at which the running process will reach its next syscall
                     running->syscall = syscall; // Set the current syscall of the running process to the next syscall
                     printf("Process %s executed syscall %s at time %d\n", running->command->name, syscall_types[syscall->type], system_time); // Print a message to indicate that the running process has executed the syscall
