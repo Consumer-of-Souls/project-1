@@ -566,6 +566,7 @@ void execute_commands(void) {
                             running->parent->num_children--;
                             if (running->parent->num_children == 0 && running->parent->waiting_bool == 1) {
                                 // If the parent has no children, move the parent to ready
+                                running->parent->waiting_bool = 0;
                                 create_sleeping(running->parent, TIME_CORE_STATE_TRANSITIONS, TOREADY); // Create the sleeping process
                             }
                         }
