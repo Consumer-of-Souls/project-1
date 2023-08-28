@@ -479,6 +479,7 @@ int move_to_bus(void) {
         } else {
             sleep_time = (temp_data / speed) + 1; // If the data cannot be read or written in a whole number of microseconds, set the sleep time to the data divided by the read or write speed plus 1
         }
+        sleep_time += TIME_ACQUIRE_BUS; // Add the time it takes to acquire the bus
         create_sleeping(bus_process, sleep_time, SLEEPING); // Create the sleeping process
     }
     return 0; // Return 0 to indicate success
