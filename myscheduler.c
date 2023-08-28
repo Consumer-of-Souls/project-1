@@ -465,16 +465,21 @@ int move_to_bus(void) {
     }
     if (device != NULL) {
         // Have to create a sleeping process based on the time it takes to read or write the data
-        double sleep_time; // The time it takes to read or write the data
+        int sleep_time; // The time it takes to read or write the data
+        int speed; // The read or write speed of the device
         struct syscall *syscall = bus_process->syscall; // Set syscall to the current syscall of the process that is using the bus
+        int temp_data = syscall->data * 1000000; // The data that needs to be read or written converted to work with microseconds
         if (syscall->type == READ) {
-            // If the current syscall of the process that is using the bus is a read syscall, calculate the time it takes to read the data
-            sleep_time = (double) syscall->data / syscall->device->read_speed * 1000000 + TIME_ACQUIRE_BUS;
+            speed = syscall->device->read_speed; // Set speed to the read speed of the device
         } else {
-            // If the current syscall of the process that is using the bus is a write syscall, calculate the time it takes to write the data
-            sleep_time = (double) syscall->data / syscall->device->write_speed * 1000000 + TIME_ACQUIRE_BUS;
+            speed = syscall->device->write_speed; // Set speed to the write speed of the device
         }
-        create_sleeping(bus_process, (int) (sleep_time+0.5), SLEEPING); // Create the sleeping process
+        if (temp_data % speed == 0) {
+            sleep_time = temp_data / speed; // If the data can be read or written in a whole number of microseconds, set the sleep time to the data divided by the read or write speed
+        } else {
+            sleep_time = (temp_data / speed) + 1; // If the data cannot be read or written in a whole number of microseconds, set the sleep time to the data divided by the read or write speed plus 1
+        }
+        create_sleeping(bus_process, sleep_time, SLEEPING); // Create the sleeping process
     }
     return 0; // Return 0 to indicate success
 }
