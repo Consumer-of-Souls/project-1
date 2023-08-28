@@ -459,8 +459,10 @@ int move_from_sleeping(void) {
         // If the first sleeping process is state transitioning to the SLEEPING state, move the process to the sleeping queue
         int data = process->syscall->data - TIME_CORE_STATE_TRANSITIONS; // How long the process needs to sleep for
         if (data > 0) {
-            create_sleeping(process, process->syscall->data, SLEEPING); // Create the sleeping process
+            // If the process needs to sleep for longer than 0, create a sleeping process
+            create_sleeping(process, data, SLEEPING);
         } else {
+            // If the process doesn't need to sleep for longer than 0, wake up the process
             printf("Process %s woke up at time %d\n", process->command->name, system_time); // Print a message to indicate that the process has woken up
             create_sleeping(process, TIME_CORE_STATE_TRANSITIONS, TOREADY); // Wake up the process
         }
