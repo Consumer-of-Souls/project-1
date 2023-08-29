@@ -127,10 +127,10 @@ struct process *bus_process = NULL; // A pointer to the process that is using th
 
 void *malloc_data(size_t size) {
     void *new_data = malloc(size); // Allocate memory for the new data
-    while (new_data == NULL) {
-        // If malloc fails, retry
-        fprintf(stderr, "Error: malloc failed, retrying...\n");
-        new_data = malloc(size); // Allocate memory for the new data
+    if (new_data == NULL) {
+        // If malloc fails, print an error message and exit the program
+        fprintf(stderr, "Error: Failed to allocate memory for new data\n");
+        exit(EXIT_FAILURE);
     }
     return new_data;
 }
