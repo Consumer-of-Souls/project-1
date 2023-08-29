@@ -12,7 +12,8 @@ longsleep
 	50usecs    exit
 #
 cal
-	90usecs    exit
+	10usecs    sleep   100usecs
+	190usecs    exit
 #
 copyfile
 	200usecs   read    hd       48000B

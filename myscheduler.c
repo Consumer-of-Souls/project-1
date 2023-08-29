@@ -166,6 +166,7 @@ int create_device(char *name, int read_speed, int write_speed) {
 
 int create_process(struct command *command, struct process *parent) {
     // Adds a new process to the end of the ready linked list
+    printf("Process %s created and appended to READY at time %d\n", command->name, system_time); // Print a message to indicate that the process has been created and appended to the ready queue
     struct process *new_process = (struct process *) malloc_data(sizeof(struct process)); // Allocate memory for the new process
     new_process->command = command; // Set the command the new process is executing
     new_process->syscall = NULL; // Set the syscall the new process is executing to NULL
@@ -222,9 +223,6 @@ int create_syscall(struct command *parent_command, int time, enum syscall_types 
 
 int create_sleeping(struct process *process, int time) {
     // Adds a new sleeping process to the sleeping linked list in order of time (ascending)
-    if (process == bus_process) {
-        printf("Process %s moving to the bus at time %d\n", process->command->name, system_time); // Print a message to indicate that the process has moved to the bus
-    }
     struct sleeping *new_sleeping = (struct sleeping *) malloc_data(sizeof(struct sleeping)); // Allocate memory for the new sleeping process
     new_sleeping->process = process; // Set the process that is sleeping
     new_sleeping->time = time + system_time; // Set the time that the process will wake up
@@ -260,12 +258,12 @@ int create_sleeping(struct process *process, int time) {
 
 int time_quantum = DEFAULT_TIME_QUANTUM; // The time quantum of the system
 
-void read_sysconfig(char argv0[], char filename[]) {
+int read_sysconfig(char argv0[], char filename[]) {
     // Reads the sysconfig file and creates the devices and sets the time quantum
     FILE *file = fopen(filename, "r"); // Open the sysconfig file
     if (file == NULL) {
         printf("Failed to open file: %s\n", filename); // Print an error message if the file cannot be opened
-        return;
+        return 1; // Return 1 to indicate failure
     }
     char line[100]; // A string to store each line of the file
     while (fgets(line, sizeof(line), file) != NULL) {
@@ -292,14 +290,15 @@ void read_sysconfig(char argv0[], char filename[]) {
         }
     }
     fclose(file); // Close the sysconfig file
+    return 0; // Return 0 to indicate success
 }
 
-void read_commands(char argv0[], char filename[]) {
+int read_commands(char argv0[], char filename[]) {
     // Reads the command file and creates the commands and their syscalls
     FILE *file = fopen(filename, "r"); // Open the command file
     if (file == NULL) {
         printf("Failed to open file: %s\n", filename); // Print an error message if the file cannot be opened
-        return;
+        return 1; // Return 1 to indicate failure
     }
     char line[100]; // A string to store each line of the file
     struct command *current_command = NULL; // A pointer to the current command
@@ -389,6 +388,7 @@ void read_commands(char argv0[], char filename[]) {
         }
     }
     fclose(file); // Close the command file
+    return 0; // Return 0 to indicate success
 }
 
 //  ----------------------------------------------------------------------
@@ -426,6 +426,7 @@ int move_to_bus(void) {
             sleep_time = (temp_data / speed) + 1; // If the data cannot be read or written in a whole number of microseconds, set the sleep time to the data divided by the read or write speed plus 1
         }
         sleep_time += TIME_ACQUIRE_BUS; // Add the time it takes to acquire the bus
+        printf("Process %s moving to the bus at time %d\n", bus_process->command->name, system_time); // Print a message to indicate that the process has moved to the bus
         create_sleeping(bus_process, sleep_time); // Create the sleeping process
     }
     return 0; // Return 0 to indicate success
@@ -455,7 +456,7 @@ int state_transition(struct process *process, enum transition transition) {
         readyn = process; // Set the last ready process to the process
     } else if (transition == SLEEPING) {
         // If the process is moving to sleeping, add it to the sleeping linked list in order of time (ascending)
-        create_sleeping(process, process->syscall->data); // Create the sleeping process
+        create_sleeping(process, process->syscall->data-TIME_CORE_STATE_TRANSITIONS); // Create the sleeping process
     } else if (transition == WAITING) {
         process->waiting_bool = 1; // Set the waiting boolean of the process to 1
     } else {
@@ -494,7 +495,7 @@ int move_from_sleeping(void) {
 
 // Clarifications: The bus can't be requested before the process on it has exited, the next ready process can't perform a context switch before the current process has finished (no preemptive scheduling)
 
-void execute_commands(void) {
+int execute_commands(void) {
     //Need to check current running process, the sleeping processes and the process on the data-bus (keep sleeping and data-bus in the sleeping linked list)
     create_process(command1, NULL); // Create the first process
     // Run the simulation until there are no more processes in ready, running, waiting or sleeping (as sleeping also contains the process on the data-bus)
@@ -506,7 +507,7 @@ void execute_commands(void) {
             running->next = NULL; // Set the next process of the running process to NULL
             // Run the simulation until the running process is blocked, finishes its timeslice or exits (running will be set to NULL at the end of this loop)
             system_time += TIME_CONTEXT_SWITCH; // Add the time it takes to switch context to the system time
-            printf("Process %s context switched from READY to RUNNING at time %d\n", running->command->name, system_time); // Print a message to indicate that the running process has moved to running
+            printf("Process %s context switched from READY to RUNNING from time %d to time %d\n", running->command->name, system_time - TIME_CONTEXT_SWITCH+1, system_time); // Print a message to indicate that the running process has switched context
             int timeslice_finish = system_time + time_quantum; // The time at which the running process will finish its timeslice
             struct syscall *syscall; // A pointer to the next syscall to run for the running process
             if (running->syscall == NULL) {
@@ -518,14 +519,12 @@ void execute_commands(void) {
             int time_to_syscall = syscall->time - running->time + system_time; // The time at which the running process will reach the next syscall
             while (running != NULL) {
                 // Need to check the next awake sleeping process (includes the databus), the time quantum and the next syscall for the running process
-                if (sleeping1 != NULL && sleeping1->time < timeslice_finish && sleeping1->time < time_to_syscall) {
+                if (sleeping1 != NULL && sleeping1->time <= timeslice_finish && sleeping1->time <= time_to_syscall) {
                     // If the next awake sleeping process will wake up before the running process finishes its timeslice or reaches its next syscall, move the next awake sleeping process to ready
                     cpu_time += sleeping1->time - system_time; // Add the time that the CPU has been running for to the CPU time
                     running->time += sleeping1->time - system_time; // Add the time that the CPU has been running for to the running process's time
                     move_from_sleeping(); // Advance the first sleeping process to the next state
-                    timeslice_finish += time_quantum; // Set the time at which the running process will finish its timeslice to the time at which the next process will finish its timeslice
-                    time_to_syscall += time_quantum; // Set the time at which the running process will reach its next syscall to the time at which the next process will reach its next syscall
-                } else if (time_to_syscall < timeslice_finish) {
+                } else if (time_to_syscall < timeslice_finish && system_time < timeslice_finish) {
                     // If the running process will reach its next syscall before it finishes its timeslice, execute the syscall
                     cpu_time += time_to_syscall - system_time; // Add the time that the CPU has been running for to the CPU time
                     running->time = syscall->time; // Set the time of the running process to the time of the syscall
@@ -562,7 +561,9 @@ void execute_commands(void) {
                     cpu_time += timeslice_finish - system_time; // Add the time that the CPU has been running for to the CPU time
                     running->time += timeslice_finish - system_time; // Add the time that the CPU has been running for to the running process's time
                     system_time = timeslice_finish; // Set the system time to the time at which the running process will finish its timeslice
+                    printf("Process %s finished its timeslice at time %d\n", running->command->name, system_time); // Print a message to indicate that the running process has finished its timeslice
                     if (ready1 == NULL) {
+                        printf("Process %s renewed its timeslice at time %d\n", running->command->name, system_time); // Print a message to indicate that the running process has renewed its timeslice
                         timeslice_finish = system_time + time_quantum; // If the ready queue is empty, set the time at which the running process will finish its timeslice to the time at which the next process will finish its timeslice
                     } else {
                         state_transition(running, READY); // Advance the running process to the next state
@@ -594,6 +595,7 @@ void execute_commands(void) {
         free(device); // Free the memory for the device
         device = temp; // Set device to temp
     }
+    return 0; // Return 0 to indicate success
 }
 
 
