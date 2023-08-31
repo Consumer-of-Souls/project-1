@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stddef.h>
 
 //  you may need other standard header files
 
@@ -98,6 +99,7 @@ struct sleeping {
 };
 
 void *malloc_data(size_t size) {
+    // Allocates memory for data and checks if malloc fails
     void *new_data = malloc(size); // Allocate memory for the new data
     if (new_data == NULL) {
         // If malloc fails, print an error message and exit the program
@@ -105,6 +107,64 @@ void *malloc_data(size_t size) {
         exit(EXIT_FAILURE);
     }
     return new_data;
+}
+
+int descending(void *a, void *b) {
+    // Compares two ints and returns 1 if the first int is greater than the second int
+    int *int_a = (int *) a; // Cast the first int to an int
+    int *int_b = (int *) b; // Cast the second int to an int
+    if (*int_a > *int_b) {
+        return 1; // Return 1 if the first int is greater than the second int
+    }
+    return 0; // Return 0 if the first int is not greater than the second int
+}
+
+int ascending(void *a, void *b) {
+    // Compares two ints and returns 1 if the first int is less than the second int
+    int *int_a = (int *) a; // Cast the first int to an int
+    int *int_b = (int *) b; // Cast the second int to an int
+    if (*int_a < *int_b) {
+        return 1; // Return 1 if the first int is less than the second int
+    }
+    return 0; // Return 0 if the first int is not less than the second int
+}
+
+void enqueue(void **queue_head, void **queue_tail, void *data, size_t next_attribute_offset, size_t comparison_attribute_offset, int(*comparison) (void *, void *)) {
+    if (comparison == NULL) {
+        // If the comparison function is NULL, insert the data at the end of the queue
+        if (*queue_head == NULL) {
+            *queue_head = data; // If the queue is empty, set the head of the queue to the data
+        } else {
+            *(void **)((char *)*queue_tail + next_attribute_offset) = data; // Set the next attribute of the tail of the queue to the data
+        }
+        *queue_tail = data; // Set the tail of the queue to the data
+    } else {
+        // If the comparison function is not NULL, insert the data in order
+        if (*queue_head == NULL) {
+            *queue_head = data; // If the queue is empty, set the head of the queue to the data
+        } else {
+            void *current = *queue_head; // Set the current data to the head of the queue
+            void *previous = NULL; // Set the previous data to NULL
+            while (current != NULL) {
+                if (comparison((char *)data + comparison_attribute_offset, (char *)current + comparison_attribute_offset)) {
+                    // If the comparison function returns true, insert the data before the current data
+                    if (previous == NULL) {
+                        *(void **)((char *)data + next_attribute_offset) = *queue_head; // Set the next attribute of the data to the head of the queue
+                        *queue_head = data; // Set the head of the queue to the data
+                    } else {
+                        *(void **)((char *)previous + next_attribute_offset) = data; // Set the next attribute of the previous data to the data
+                        *(void **)((char *)data + next_attribute_offset) = current; // Set the next attribute of the data to the current data
+                    }
+                    break;
+                }
+                previous = current; // Set the previous data to the current data
+                current = *(void **)((char *)current + next_attribute_offset); // Set the current data to the next data in the queue
+            }
+            if (current == NULL) {
+                *(void **)((char *)previous + next_attribute_offset) = data; // If the data has the highest value, set it as the tail of the queue
+            }
+        }
+    }
 }
 
 int create_device(char *name, int read_speed, int write_speed, struct device **device1) {
@@ -116,32 +176,7 @@ int create_device(char *name, int read_speed, int write_speed, struct device **d
     new_device->queue_head = NULL; // Set the head of the queue of processes waiting to use the device to NULL
     new_device->queue_tail = NULL; // Set the tail of the queue of processes waiting to use the device to NULL
     new_device->next = NULL; // Set the next device in the linked list to NULL
-    if (*device1 == NULL) {
-        *device1 = new_device; // If the linked list of devices is empty, set the first device to the new device
-    } else {
-        struct device *current = *device1; // Set the current device to the first device in the linked list
-        struct device *previous = NULL; // Set the previous device to NULL
-        while (current != NULL) {
-            if (read_speed > current->read_speed) {
-                // If the read speed of the new device is higher than the current device in the linked list, insert the new device before the current device
-                if (previous == NULL) {
-                    // If the new device has the highest read speed, set it as the first device
-                    new_device->next = *device1; // Set the next device of the new device to the first device
-                    *device1 = new_device; // Set the first device to the new device
-                } else {
-                    // If the new device has a read speed higher than the current device, but not the highest read speed, insert the new device before the current device
-                    previous->next = new_device; // Set the next device of the previous device to the new device
-                    new_device->next = current; // Set the next device of the new device to the current device
-                }
-                break;
-            }
-            previous = current; // Set the previous device to the current device
-            current = current->next; // Set the current device to the next device in the linked list
-        }
-        if (current == NULL) {
-            previous->next = new_device; // If the new device has the lowest read speed, set it as the last device
-        }
-    }
+    enqueue((void **)device1, NULL, new_device, offsetof(struct device, next), offsetof(struct device, read_speed), descending); // Add the new device to the linked list of devices, ordered by read speed (descending
     return 0; // Return 0 to indicate success
 }
 
@@ -156,13 +191,7 @@ int create_process(struct command *command, struct process *parent, struct proce
     new_process->waiting_bool = 0; // Set the waiting boolean of the new process to 0
     new_process->parent = parent; // Set the parent of the new process
     new_process->next = NULL; // Set the next process in the linked list to NULL
-    if (*ready1 == NULL) {
-        *ready1 = new_process; // If the linked list of ready processes is empty, set the first ready process to the new process
-        *readyn = new_process; // Set the last ready process to the new process
-    } else {
-        (*readyn)->next = new_process; // Set the next process of the last ready process to the new process
-        *readyn = new_process; // Set the last ready process to the new process
-    }
+    enqueue((void **)ready1, (void **)readyn, new_process, offsetof(struct process, next), 0, NULL); // Add the new process to the end of the ready linked list
     return 0; // Return 0 to indicate success
 }
 
@@ -173,13 +202,7 @@ int create_command(char *name, struct command **command1, struct command **comma
     new_command->queue_head = NULL; // Set the head of the queue of syscalls that the command needs to execute to NULL
     new_command->queue_tail = NULL; // Set the tail of the queue of syscalls that the command needs to execute to NULL
     new_command->next = NULL; // Set the next command in the linked list to NULL
-    if (*command1 == NULL) {
-        *command1 = new_command; // If the linked list of commands is empty, set the first command to the new command
-        *commandn = new_command; // Set the last command to the new command
-    } else {
-        (*commandn)->next = new_command; // Set the next command of the last command to the new command
-        *commandn = new_command; // Set the last command to the new command
-    }
+    enqueue((void **)command1, (void **)commandn, new_command, offsetof(struct command, next), 0, NULL); // Add the new command to the end of the command linked list
     return 0; // Return 0 to indicate success
 }
 
@@ -192,13 +215,7 @@ int create_syscall(struct command *parent_command, int time, enum syscall_types 
     new_syscall->command = command; // Set the command that the syscall needs to spawn
     new_syscall->data = data; // Set the data that the syscall needs to read or write or the time that the process needs to sleep for
     new_syscall->next = NULL; // Set the next syscall in the linked list to NULL
-    if (parent_command->queue_head == NULL) {
-        parent_command->queue_head = new_syscall; // If the linked list of syscalls for the parent command is empty, set the head of the queue to the new syscall
-        parent_command->queue_tail = new_syscall; // Set the tail of the queue to the new syscall
-    } else {
-        parent_command->queue_tail->next = new_syscall; // Set the next syscall of the tail of the parent command's queue to the new syscall
-        parent_command->queue_tail = new_syscall; // Set the tail of the queue to the new syscall
-    }
+    enqueue((void **)&parent_command->queue_head, (void **)&parent_command->queue_tail, new_syscall, offsetof(struct syscall, next), offsetof(struct syscall, time), ascending); // Add the new syscall to the end of the parent command's syscall linked list
     return 0; // Return 0 to indicate success
 }
 
@@ -208,42 +225,16 @@ int create_sleeping(struct process *process, int time, struct sleeping **sleepin
     new_sleeping->process = process; // Set the process that is sleeping
     new_sleeping->time = time + *system_time; // Set the time that the process will wake up
     new_sleeping->next = NULL; // Set the next sleeping process in the linked list to NULL
-    if (*sleeping1 == NULL) {
-        *sleeping1 = new_sleeping; // If the linked list of sleeping processes is empty, set the first sleeping process to the new sleeping process
-    } else {
-        struct sleeping *current = *sleeping1; // Set the current sleeping process to the first sleeping process in the linked list
-        struct sleeping *previous = NULL; // Set the previous sleeping process to NULL
-        while (current != NULL) {
-            if (new_sleeping->time < current->time) {
-                // If the time of the new sleeping process is lower than the current sleeping process in the linked list, insert the new sleeping process before the current sleeping process
-                if (previous == NULL) {
-                    // If the new sleeping process has the lowest time, set it as the first sleeping process
-                    new_sleeping->next = *sleeping1; // Set the next sleeping process of the new sleeping process to the first sleeping process
-                    *sleeping1 = new_sleeping; // Set the first sleeping process to the new sleeping process
-                } else {
-                    // If the new sleeping process has a time lower than the current sleeping process, but not the lowest time, insert the new sleeping process before the current sleeping process
-                    previous->next = new_sleeping; // Set the next sleeping process of the previous sleeping process to the new sleeping process
-                    new_sleeping->next = current; // Set the next sleeping process of the new sleeping process to the current sleeping process
-                }
-                break;
-            }
-            previous = current; // Set the previous sleeping process to the current sleeping process
-            current = current->next; // Set the current sleeping process to the next sleeping process in the linked list
-        }
-        if (current == NULL) {
-            previous->next = new_sleeping; // If the new sleeping process has the highest time, set it as the last sleeping process
-        }
-    }
+    enqueue((void **)sleeping1, NULL, new_sleeping, offsetof(struct sleeping, next), offsetof(struct sleeping, time), ascending); // Add the new sleeping process to the sleeping linked list in order of time (ascending)
     return 0; // Return 0 to indicate success
 }
-
-
 
 int read_sysconfig(char argv0[], char filename[], struct device **device1, int *time_quantum) {
     // Reads the sysconfig file and creates the devices and sets the time quantum
     FILE *file = fopen(filename, "r"); // Open the sysconfig file
     if (file == NULL) {
-        printf("Failed to open file: %s\n", filename); // Print an error message if the file cannot be opened
+        fprintf(stderr, "Error: %s failed to open file %s\n", argv0, filename); // Print an error message if the file cannot be opened
+        exit(EXIT_FAILURE); // Exit the program
         return 1; // Return 1 to indicate failure
     }
     char line[100]; // A string to store each line of the file
@@ -278,7 +269,8 @@ int read_commands(char argv0[], char filename[], struct command **command1, stru
     // Reads the command file and creates the commands and their syscalls
     FILE *file = fopen(filename, "r"); // Open the command file
     if (file == NULL) {
-        printf("Failed to open file: %s\n", filename); // Print an error message if the file cannot be opened
+        fprintf(stderr, "Error: %s failed to open file %s\n", argv0, filename); // Print an error message if the file cannot be opened
+        exit(EXIT_FAILURE); // Exit the program
         return 1; // Return 1 to indicate failure
     }
     char line[100]; // A string to store each line of the file
@@ -375,27 +367,30 @@ int read_commands(char argv0[], char filename[], struct command **command1, stru
 //  ----------------------------------------------------------------------
 
 struct system {
-    struct process **ready1;
-    struct process **readyn;
-    struct sleeping **sleeping1;
-    struct device *device1;
-    struct process **bus_process;
-    int *system_time;
+    // A struct to represent the system
+    struct process **ready1; // A pointer to the first ready process
+    struct process **readyn; // A pointer to the last ready process
+    struct sleeping **sleeping1; // A pointer to the first sleeping process
+    struct device *device1; // A pointer to the first device
+    struct process **bus_process; // A pointer to the process that is using the bus
+    int *system_time; // A pointer to the system time
 };
 
 int move_to_bus(struct system *system) {
     if (*system->bus_process != NULL) {
         return 1; // Return 1 to indicate failure
     }
-    struct device *device = system->device1;
+    struct device *device = system->device1; // Set device to the first device in the linked list
     while (device != NULL) {
+        // Find the first device that has a process waiting to use it
         if (device->queue_head != NULL) {
-            *system->bus_process = device->queue_head;
-            device->queue_head = device->queue_head->next;
-            (*system->bus_process)->next = NULL;
-            break;
+            // If the device has a process waiting to use it, move the process to the bus
+            *system->bus_process = device->queue_head; // Set the process that is using the bus to the first process in the queue of processes waiting to use the device
+            device->queue_head = device->queue_head->next; // Set the first process in the queue of processes waiting to use the device to the next process in the queue
+            (*system->bus_process)->next = NULL; // Set the next process of the process that is using the bus to NULL
+            break; // Break out of the loop
         }
-        device = device->next;
+        device = device->next; // Set device to the next device in the linked list
     }
     if (device != NULL) {
         int sleep_time;
@@ -433,13 +428,7 @@ int state_transition(struct process *process, enum transition transition, struct
     *system->system_time += TIME_CORE_STATE_TRANSITIONS; // Add the time it takes to transition states to the system time
     printf("Process %s state transitioned to %s from time %d to time %d\n", process->command->name, transitions[transition], *system->system_time - TIME_CORE_STATE_TRANSITIONS+1, *system->system_time); // Print a message to indicate that the process has transitioned states
     if (transition == READY) {
-        // If the process is moving to ready, add it to the end of the ready linked list
-        if (*system->ready1 == NULL) {
-            *system->ready1 = process; // If the linked list of ready processes is empty, set the first ready process to the process
-        } else {
-            (*system->readyn)->next = process; // Set the next process of the last ready process to the process
-        }
-        *system->readyn = process; // Set the last ready process to the process
+        enqueue((void **)system->ready1, (void **)system->readyn, process, offsetof(struct process, next), 0, NULL); // Add the process to the end of the ready linked list
     } else if (transition == SLEEPING) {
         // If the process is moving to sleeping, add it to the sleeping linked list in order of time (ascending)
         create_sleeping(process, process->syscall->data-TIME_CORE_STATE_TRANSITIONS, system->sleeping1, system->system_time); // Create the sleeping process
@@ -447,12 +436,7 @@ int state_transition(struct process *process, enum transition transition, struct
         process->waiting_bool = 1; // Set the waiting boolean of the process to 1
     } else {
         // If the process is moving to IO, add it to the queue of processes waiting to use the device
-        if (process->syscall->device->queue_head == NULL) {
-            process->syscall->device->queue_head = process; // If the queue of processes waiting to read from the device is empty, set the first process in the queue to the process
-        } else {
-            process->syscall->device->queue_tail->next = process; // Set the next process of the last process in the queue to the process
-        }
-        process->syscall->device->queue_tail = process; // Set the last process in the queue to the process
+        enqueue((void **)&process->syscall->device->queue_head, (void **)&process->syscall->device->queue_tail, process, offsetof(struct process, next), 0, NULL); // Add the process to the end of the queue of processes waiting to use the device
         if (*system->bus_process == NULL) {
             move_to_bus(system);
         }
@@ -574,35 +558,14 @@ int execute_commands(struct command *command1, struct device *device1, int time_
             move_from_sleeping(system);
         }
     }
+    return 0; // Return 0 to indicate success
 }
 
 
 //  ----------------------------------------------------------------------
 
-int main(int argc, char *argv[]) {
-    // ENSURE THAT WE HAVE THE CORRECT NUMBER OF COMMAND-LINE ARGUMENTS
-    if(argc != 3) {
-        printf("Usage: %s sysconfig-file command-file\n", argv[0]); // Print an error message if the number of command-line arguments is incorrect
-        exit(EXIT_FAILURE); // EXIT WITH A NON-ZERO EXIT CODE TO INDICATE AN ERROR
-        return 1; // Return 1 to indicate an error
-    }
-
-    // INITIALISE VARIABLES
-    struct device *device1 = NULL; // A pointer to the first device
-    struct command *command1 = NULL; // A pointer to the first command
-    struct command *commandn = NULL; // A pointer to the last command
-    int time_quantum = DEFAULT_TIME_QUANTUM;
+int debugging(struct device *device1, struct command *command1, int *time_quantum) {
     char *syscall_types[] = {"spawn", "read", "write", "sleep", "wait", "exit"}; // An array of strings to store the types of syscalls
-    int system_time = 0; // The system time
-    int cpu_time = 0; // The CPU time
-
-    // READ THE SYSTEM CONFIGURATION FILE
-    read_sysconfig(argv[0], argv[1], &device1, &time_quantum);
-    
-    // READ THE COMMAND FILE
-    read_commands(argv[0], argv[2], &command1, &commandn, device1);
-    
-    // DEBUG
     struct device *device = device1;
     while (device != NULL) {
         printf("Device: %s, Read Speed: %dBps, Write Speed: %dBps\n", device->name, device->read_speed, device->write_speed);
@@ -619,8 +582,49 @@ int main(int argc, char *argv[]) {
         command = command->next;
     }
     printf("Time Quantum: %d\n", time_quantum);
+    return 0;
+}
 
-    // END DEBUG
+int free_memory(struct device *device1, struct command *command1) {
+    struct device *device = device1;
+    while (device != NULL) {
+        struct device *temp = device->next;
+        free(device);
+        device = temp;
+    }
+    struct command *command = command1;
+    while (command != NULL) {
+        struct command *temp = command->next;
+        free(command);
+        command = temp;
+    }
+    return 0;
+}
+
+int main(int argc, char *argv[]) {
+    // ENSURE THAT WE HAVE THE CORRECT NUMBER OF COMMAND-LINE ARGUMENTS
+    if(argc != 3) {
+        fprintf(stderr, "Usage: %s sysconfig-file command-file\n", argv[0]); // Print an error message if the number of command-line arguments is incorrect
+        exit(EXIT_FAILURE); // EXIT WITH A NON-ZERO EXIT CODE TO INDICATE AN ERROR
+        return 1; // Return 1 to indicate an error
+    }
+
+    // INITIALISE VARIABLES
+    struct device *device1 = NULL; // A pointer to the first device
+    struct command *command1 = NULL; // A pointer to the first command
+    struct command *commandn = NULL; // A pointer to the last command
+    int time_quantum = DEFAULT_TIME_QUANTUM;
+    int system_time = 0; // The system time
+    int cpu_time = 0; // The CPU time
+
+    // READ THE SYSTEM CONFIGURATION FILE
+    read_sysconfig(argv[0], argv[1], &device1, &time_quantum);
+    
+    // READ THE COMMAND FILE
+    read_commands(argv[0], argv[2], &command1, &commandn, device1);
+    
+    // DEBUGGING
+    debugging(device1, command1, &time_quantum);
 
     // EXECUTE COMMANDS, STARTING AT FIRST IN command-file, UNTIL NONE REMAIN
     execute_commands(command1, device1, time_quantum, &system_time, &cpu_time);
@@ -632,25 +636,7 @@ int main(int argc, char *argv[]) {
     printf("measurements  %i  %i\n", system_time, rounded_cpu_utilisation);
     
     // Free the memory for the syscalls, commands and devices
-    command = command1; // Set command to the first command in the linked list
-    while (command != NULL) {
-        struct syscall *syscall = command->queue_head; // Set syscall to the first syscall of the command
-        while (syscall != NULL) {
-            struct syscall *temp = syscall->next; // Set temp to the next syscall of the command
-            free(syscall); // Free the memory for the syscall
-            syscall = temp; // Set syscall to temp
-        }
-        struct command *temp = command->next; // Set temp to the next command in the linked list
-        free(command); // Free the memory for the command
-        command = temp; // Set command to temp
-    }
-    device = device1; // Set device to the first device in the linked list
-    while (device != NULL) {
-        struct device *temp = device->next; // Set temp to the next device in the linked list
-        free(device); // Free the memory for the device
-        device = temp; // Set device to temp
-    }
-    return 0; // Return 0 to indicate success
+    free_memory(device1, command1);
 
     exit(EXIT_SUCCESS); // EXIT WITH A SUCCESSFUL RETURN CODE
     return 0; // Return 0 to indicate success
