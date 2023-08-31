@@ -605,7 +605,7 @@ int debugging(struct device *device1, struct command *command1, int *time_quantu
         }
         command = command->next; // Set command to the next command in the linked list
     }
-    printf("Time Quantum: %d\n", time_quantum); // Print the time quantum
+    printf("Time Quantum: %d\n", *time_quantum); // Print the time quantum
     return 0; // Return 0 to indicate success
 }
 
