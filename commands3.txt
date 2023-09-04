@@ -12,7 +12,7 @@ longsleep
 	50usecs    exit
 #
 cal
-	10usecs    sleep   100usecs
+	10usecs    sleep   20usecs
 	190usecs    exit
 #
 copyfile
