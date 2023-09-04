@@ -1,0 +1,3 @@
+readCmd
+	200usecs   read    hd       48000B
+	250usecs   exit

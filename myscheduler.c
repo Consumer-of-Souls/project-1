@@ -401,7 +401,7 @@ int move_to_bus(struct system *system) {
         int sleep_time; // An int to store the time that the process needs to sleep until
         int speed; // An int to store the speed of the device
         struct syscall *syscall = (*system->bus_process)->syscall; // Set syscall to the syscall that the process is executing (read or write)
-        int temp_data = syscall->data * 1000000; // Multiply the data by 1000000 so it can work with microseconds
+        unsigned long long int temp_data = (unsigned long long int) syscall->data * 1000000; // Multiply the data by 1000000 so it can work with microseconds
         if (syscall->type == READ) {
             // If the syscall is read, set the speed of the device to the read speed of the device
             speed = syscall->device->read_speed;
