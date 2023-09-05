@@ -1,10 +1,9 @@
 shell
-	100usecs   spawn   cal
-	240usecs   wait
+	100usecs   wait
 	1000usecs  exit
 #
 shortsleep
-	10usecs    sleep   1000000usecs
+	10usecs    sleep   35usecs
 	50usecs    exit
 #
 longsleep
@@ -12,8 +11,9 @@ longsleep
 	50usecs    exit
 #
 cal
-	10usecs    sleep   20usecs
-	190usecs    exit
+	5usecs     spawn   shortsleep
+	10usecs    sleep   30usecs
+	190usecs   exit
 #
 copyfile
 	200usecs   read    hd       48000B
