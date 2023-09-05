@@ -484,12 +484,16 @@ int state_transition(struct process *process, enum transition transition) {
 }
 
 int move_from_sleeping(void) {
+    if (sleeping1 == NULL || sleeping1->time > system_time) {
+        return 1; // Return 1 to indicate failure
+    }
     printf("%d: Process %s woke up\n", system_time, sleeping1->process->command->name); // Print a message to indicate that the process has woken up
     struct process *process = sleeping1->process; // Set process to the process that has woken up
     struct sleeping *temp = sleeping1->next; // Set temp to the next sleeping process in the linked list
     free(sleeping1); // Free the memory for the sleeping process
     sleeping1 = temp; // Set the first sleeping process in the linked list to temp
     state_transition(process, READY); // Transition the process to ready
+    return 0; // Return 0 to indicate success
 }
 
 int run_process(void) {
@@ -539,9 +543,10 @@ int run_process(void) {
         cpu_time += time_quantum; // Add the time quantum to the CPU time
         running->time += time_quantum; // Add the time quantum to the time of the running process
         system_time += time_quantum; // Add the time quantum to the system time
-        printf("%d-%d: Process %s used its timeslice\n", temp_time, system_time, running->command->name); // Print a message to indicate that the process has finished its timeslice
+        printf("%d-%d: Process %s exhausted its timeslice\n", temp_time, system_time, running->command->name); // Print a message to indicate that the process has finished its timeslice
         state_transition(running, READY); // Transition the process to ready
     }
+    return 0; // Return 0 to indicate success
 }
 
 int execute_commands(void) {
