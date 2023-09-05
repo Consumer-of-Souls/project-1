@@ -31,11 +31,12 @@
 //  AND THAT THE TOTAL-PROCESS-COMPLETION-TIME WILL NOT EXCEED 2000 SECONDS
 //  (SO YOU CAN SAFELY USE 'STANDARD' 32-BIT ints TO STORE TIMES).
 
-#define DEFAULT_TIME_QUANTUM            100
+#define DEFAULT_TIME_QUANTUM               100
 
-#define TIME_CONTEXT_SWITCH             5
-#define TIME_CORE_STATE_TRANSITIONS     10
-#define TIME_ACQUIRE_BUS                20
+#define TIME_CONTEXT_SWITCH                5
+#define TIME_CORE_STATE_TRANSITIONS        10
+#define TIME_ACQUIRE_BUS                   20
+#define ADDITIONAL_SYSCALL_EXECUTION_TIME  1
 
 
 //  ----------------------------------------------------------------------
@@ -56,7 +57,7 @@ struct device {
 struct process { 
     // A struct to represent a process
     struct command *command; // A pointer to the command that the process is executing
-    struct syscall *syscall; // A pointer to the syscall that the process is executing
+    struct syscall *syscall; // A pointer to the last syscall that the process executed
     int time; // The time that the process has been running for
     int num_children; // The number of children that the process has
     int waiting_bool; // A boolean to indicate if the process is waiting for a child process to finish
@@ -509,11 +510,11 @@ int run_process(void) {
     }
     int syscall_time = syscall->time - running->time + system_time; // The time at which the running process will reach the next syscall
     int temp_time = system_time; // A temporary variable to store the system time
-    if (syscall_time+1 <= timeslice_finish) {
+    if (syscall_time+ADDITIONAL_SYSCALL_EXECUTION_TIME <= timeslice_finish) {
         // If the running process will reach its next syscall and be able to execute it before the end of its timeslice, execute the syscall
         cpu_time += syscall_time - system_time; // Add the time that the CPU has been running for to the CPU time
         running->time = syscall->time; // Set the time of the running process to the time of the syscall
-        system_time = syscall_time + 1; // Set the system time to the syscall time plus 1 (the time it takes to execute the syscall)
+        system_time = syscall_time + ADDITIONAL_SYSCALL_EXECUTION_TIME; // Set the system time to the time that the process will finish executing the syscall
         running->syscall = syscall; // Set the current syscall of the running process to the syscall
         printf("%d-%d: Process %s executed syscall %s\n", temp_time, system_time, running->command->name, syscall_types[syscall->type]); // Print a message to indicate that the process has executed the syscall
         if (syscall->type == SPAWN) {
