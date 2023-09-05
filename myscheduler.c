@@ -499,7 +499,6 @@ int run_process(void) {
     running->next = NULL; // Set the next process in the running linked list to NULL
     system_time += TIME_CONTEXT_SWITCH; // Add the time it takes to perform a context switch to the system time
     printf("%d-%d: Process %s context switched to RUNNING\n", system_time-TIME_CONTEXT_SWITCH+1, system_time, running->command->name); // Print a message to indicate that the process has been context switched to running
-    int timeslice_finish = system_time + time_quantum; // Set the time that the process will finish using the CPU
     struct syscall *syscall;
     if (running->syscall == NULL) {
         // If the process has no syscall, set syscall to the first syscall in the linked list
@@ -508,13 +507,13 @@ int run_process(void) {
         // If the process has a syscall, set syscall to the next syscall in the linked list
         syscall = running->syscall->next;
     }
-    int syscall_time = syscall->time - running->time + system_time; // The time at which the running process will reach the next syscall
+    int time_to_syscall = syscall->time - running->time; // An int to store the time until the process reaches its next syscall
     int temp_time = system_time; // A temporary variable to store the system time
-    if (syscall_time+ADDITIONAL_SYSCALL_EXECUTION_TIME <= timeslice_finish) {
+    if (time_to_syscall+ADDITIONAL_SYSCALL_EXECUTION_TIME <= time_quantum) {
         // If the running process will reach its next syscall and be able to execute it before the end of its timeslice, execute the syscall
-        cpu_time += syscall_time - system_time; // Add the time that the CPU has been running for to the CPU time
+        cpu_time += time_to_syscall; // Add the time until the process reaches its next syscall to the CPU time
         running->time = syscall->time; // Set the time of the running process to the time of the syscall
-        system_time = syscall_time + ADDITIONAL_SYSCALL_EXECUTION_TIME; // Set the system time to the time that the process will finish executing the syscall
+        system_time += time_to_syscall + ADDITIONAL_SYSCALL_EXECUTION_TIME; // Set the system time to the time that the process will finish executing the syscall
         running->syscall = syscall; // Set the current syscall of the running process to the syscall
         printf("%d-%d: Process %s executed syscall %s\n", temp_time, system_time, running->command->name, syscall_types[syscall->type]); // Print a message to indicate that the process has executed the syscall
         if (syscall->type == SPAWN) {
@@ -537,9 +536,9 @@ int run_process(void) {
             free(running); // Free the memory for the running process
         }
     } else {
-        cpu_time += timeslice_finish - system_time; // Add the time that the process used the CPU to the CPU time
-        running->time += timeslice_finish - system_time; // Add the time that the process used the CPU to the time that the process has been running
-        system_time = timeslice_finish; // Set the system time to the time that the process will finish using the CPU
+        cpu_time += time_quantum; // Add the time quantum to the CPU time
+        running->time += time_quantum; // Add the time quantum to the time of the running process
+        system_time += time_quantum; // Add the time quantum to the system time
         printf("%d-%d: Process %s used its timeslice\n", temp_time, system_time, running->command->name); // Print a message to indicate that the process has finished its timeslice
         state_transition(running, READY); // Transition the process to ready
     }
