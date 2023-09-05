@@ -509,8 +509,8 @@ int run_process(void) {
     }
     int syscall_time = syscall->time - running->time + system_time; // The time at which the running process will reach the next syscall
     int temp_time = system_time; // A temporary variable to store the system time
-    if (syscall_time < timeslice_finish) {
-        // If the running process will reach its next syscall before it finishes its timeslice, execute the syscall
+    if (syscall_time+1 <= timeslice_finish) {
+        // If the running process will reach its next syscall and be able to execute it before the end of its timeslice, execute the syscall
         cpu_time += syscall_time - system_time; // Add the time that the CPU has been running for to the CPU time
         running->time = syscall->time; // Set the time of the running process to the time of the syscall
         system_time = syscall_time + 1; // Set the system time to the syscall time plus 1 (the time it takes to execute the syscall)
