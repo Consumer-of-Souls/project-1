@@ -415,7 +415,8 @@ int move_to_bus(void) {
         if (device->queue_head != NULL) {
             // If the device has a process waiting to use it, move the process to the bus
             bus.process = device->queue_head; // Set the process that is using the bus to the first process in the queue of processes waiting to use the device
-            device->queue_head = device->queue_head->next; // Set the first process in the queue of processes waiting to use the device to the next process in the queue
+            device->queue_head = bus.process->next; // Set the first process in the queue of processes waiting to use the device to the next process in the queue
+            bus.process->next = NULL; // Set the next process in the queue of processes waiting to use the device to NULL
             break; // Break out of the loop
         }
         device = device->next; // Set device to the next device in the linked list
@@ -463,7 +464,10 @@ enum transition {
 
 int state_transition(struct process *process, enum transition transition) {
     // Transitions the process to the next state
-    char *transitions[] = {"READY", "SLEEPING", "WAITING", "IO"}; // An array of strings to store the possible transitions
+    if (process->next != NULL) {
+        // A process cannot undergo a state transition while still in another linked list (this may cause issues in both the linked list it's currently part of, and the linked list it's being added to)
+        return 1; // Return 1 to indicate failure
+    }
     system_time += TIME_CORE_STATE_TRANSITIONS; // Add the time it takes to transition states to the system time
     if (transition == READY) {
         // If the process is moving to ready, add it to the end of the ready linked list
