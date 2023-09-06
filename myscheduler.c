@@ -567,15 +567,12 @@ int execute_commands(void) {
     int temp_time; // A temporary variable to store the system time
     while (simulating) {
         temp_time = system_time; // Store the system time at the start of this iteration of the simulation
-        simulating = 0; // Default simulating to 0
         while (sleeping1 != NULL && sleeping1->time <= temp_time) {
             // Unblock any sleeping processes that have finished sleeping (at the time this simulation iteration started)
-            simulating = 1; // An action was simulated and time was advanced
             move_from_sleeping(); // Unblock the first sleeping process in the linked list
         }
         if (waiting_with_no_children != NULL) {
             // Unblock the waiting process with no children (there will only be one with no children as this only occurs if the process that just ran exited)
-            simulating = 1; // An action was simulated and time was advanced
             printf("%d: Process %s had no children left to wait for and advanced to READY\n", system_time, waiting_with_no_children->command->name); // Print a message to indicate that the process has no children to wait for
             waiting_with_no_children->waiting_bool = 0; // Set the waiting boolean of the waiting process to 0
             state_transition(waiting_with_no_children, READY); // Advance the waiting process to READY (append it to the end of the ready linked list)
@@ -583,25 +580,21 @@ int execute_commands(void) {
         } 
         if (bus.process != NULL && bus.time <= temp_time) {
             // Unblock the process on the bus if it has finished using the bus
-            simulating = 1; // An action was simulated and time was advanced
             printf("%d: Process %s relinquished the bus\n", system_time, bus.process->command->name); // Print a message to indicate that the process has relinquished the bus
             state_transition(bus.process, READY); // Advance the process to READY (append it to the end of the ready linked list)
             bus.process = NULL; // Set the process using the bus to NULL
         }
         if (bus.process == NULL && num_processes_waiting_for_IO != 0) {
             // Commence any pending IO if the bus is free
-            simulating = 1; // An action was simulated and time was advanced
             move_to_bus(); // Move the first process on the device with the highest read speed to the bus
         } 
         if (ready1 != NULL) {
             // Commence/resume the next READY process
-            simulating = 1; // An action was simulated and time was advanced
             run_process(); // Run the next process in the ready linked list
         }
-        if (!simulating) {
+        if (system_time == temp_time) {
             // If nothing occurred in this iteration of the simulation, time jump to the next event (if there isn't one, the simulation will end)
             if (sleeping1 != NULL) {
-                simulating = 1; // An action was simulated and time was advanced
                 if (bus.process != NULL) {
                     // If there is a process on the bus, set the system time to the time that the process on the bus will finish using the bus or the time that the first sleeping process will wake up (whichever is sooner)
                     if (sleeping1->time < bus.time) {
@@ -615,8 +608,10 @@ int execute_commands(void) {
                 }
             } else if (bus.process != NULL) {
                 // If there is a process on the bus, set the system time to the time that the process on the bus will finish using the bus
-                simulating = 1; // An action was simulated and time was advanced
                 system_time = bus.time;
+            } else {
+                // If there is no process on the bus or any sleeping processes, a time jump cannot be performed and the simulation will end
+                simulating = 0; 
             }
         }
     }
