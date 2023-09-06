@@ -469,12 +469,11 @@ int state_transition(struct process *process, enum transition transition) {
         // If the process is moving to sleeping, add it to the sleeping linked list in order of time (ascending)
         create_sleeping(process, process->syscall->data-TIME_CORE_STATE_TRANSITIONS);
     } else if (transition == WAITING) {
-        // If the process is moving to waiting, set the waiting boolean of the process to 1
-        process->waiting_bool = 1;
+        // If the process is moving to waiting, set its waiting boolean to 1
         if (process->num_children == 0) {
-            // If the process has no children, set the process to the only waiting process with no children
-            waiting_with_no_children = process;
+            return 1; // Return 1 to indicate failure
         }
+        process->waiting_bool = 1;
     } else {
         // If the process is moving to IO, add it to the queue of processes waiting to use the device
         num_processes_waiting_for_IO++; // Increment the number of processes waiting for IO
@@ -523,13 +522,19 @@ int run_process(void) {
         if (syscall->type == SPAWN) {
             create_process(syscall->command, running); // Create the process
             running->num_children++; // Increment the number of children of the running process
-            state_transition(running, READY); // Advance the running process to the next state
+            state_transition(running, READY); // Advance the running process to READY (append it to the end of the ready linked list)
         } else if (syscall->type == READ || syscall->type == WRITE) {
-            state_transition(running, IO); // Advance the running process to the next state
+            state_transition(running, IO); // Advance the running process to IO (append it to the end of the queue of processes waiting to use the device it needs to use)
         } else if (syscall->type == SLEEP) {
-            state_transition(running, SLEEPING); // Advance the running process to the next state
+            state_transition(running, SLEEPING); // Advance the running process to SLEEPING (append it to the sleeping linked list in order of wake up time)
         } else if (syscall->type == WAIT) {
-            state_transition(running, WAITING); // Advance the running process to the next state
+            if (running->num_children == 0) {
+                // If the running process has no children, advance it to READY (doesn't need to wait for any children to exit)
+                printf("%d: Process %s had no children to wait for and advanced to READY\n", system_time, running->command->name); // Print a message to indicate that the process has no children to wait for
+                state_transition(running, READY); // Advance the running process to READY (append it to the end of the ready linked list)
+            } else {
+                state_transition(running, WAITING); // Advance the running process to WAITING (set its waiting boolean to 1 and leave it hanging in memory)
+            }
         } else {
             if (running->parent != NULL) {
                 running->parent->num_children--; // Decrement the number of children of the parent of the running process
@@ -558,7 +563,7 @@ int execute_commands(void) {
             // Unblock the first sleeping process if it has finished sleeping
             move_from_sleeping();
         } else if (waiting_with_no_children != NULL) {
-            // Unblock the waiting process with no children (there will only be one with no children as this will only occur if something enters the waiting queue with no children, or if the process that just ran exits and is the last child)
+            // Unblock the waiting process with no children (there will only be one with no children as this only occurs if the process that just ran exited and was the last child of the process that is waiting)
             waiting_with_no_children->waiting_bool = 0; // Set the waiting boolean of the waiting process to 0
             state_transition(waiting_with_no_children, READY);
             waiting_with_no_children = NULL;

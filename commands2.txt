@@ -3,6 +3,7 @@ shell
 	120usecs   read    terminal 4B
 	220usecs   spawn   cal
 	230usecs   wait
+	250usecs   wait
 	1000usecs  exit
 #
 shortsleep
