@@ -1,4 +1,5 @@
 shell
+	100usecs   spawn   cal
 	100usecs   wait
 	1000usecs  exit
 #
@@ -12,7 +13,7 @@ longsleep
 #
 cal
 	5usecs     spawn   shortsleep
-	10usecs    sleep   30usecs
+	10usecs    sleep   20usecs
 	190usecs   exit
 #
 copyfile
