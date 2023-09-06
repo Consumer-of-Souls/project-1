@@ -444,7 +444,11 @@ int move_to_bus(void) {
         sleep_time = (temp_data / speed) + 1;
     }
     sleep_time += TIME_ACQUIRE_BUS; // Add the time it takes to acquire the bus to the time that the process needs to sleep until
-    printf("%d: Process %s is acquiring the bus and will relinquish it in %dusecs\n", system_time, bus.process->command->name, sleep_time); // Print a message to indicate that the process has acquired the bus
+    if (syscall->type == READ) {
+        printf("%d: Process %s is acquiring the bus and will relinquish it in %dusecs after reading %dB from device %s\n", system_time, bus.process->command->name, sleep_time, syscall->data, syscall->device->name); // Print a message to indicate that the process is acquiring the bus
+    } else {
+        printf("%d: Process %s is acquiring the bus and will relinquish it in %dusecs after writing %dB to device %s\n", system_time, bus.process->command->name, sleep_time, syscall->data, syscall->device->name); // Print a message to indicate that the process is acquiring the bus
+    }
     bus.time = system_time + sleep_time; // Set the time that the process will finish using the bus
     return 0; // Return 0 to indicate success
 }
@@ -461,21 +465,24 @@ int state_transition(struct process *process, enum transition transition) {
     // Transitions the process to the next state
     char *transitions[] = {"READY", "SLEEPING", "WAITING", "IO"}; // An array of strings to store the possible transitions
     system_time += TIME_CORE_STATE_TRANSITIONS; // Add the time it takes to transition states to the system time
-    printf("%d-%d: Process %s state transitioned to %s\n", system_time-TIME_CORE_STATE_TRANSITIONS+1, system_time, process->command->name, transitions[transition]); // Print a message to indicate that the process has transitioned to the next state
     if (transition == READY) {
         // If the process is moving to ready, add it to the end of the ready linked list
+        printf("%d-%d: Process %s state transitioned to READY\n", system_time-TIME_CORE_STATE_TRANSITIONS+1, system_time, process->command->name); // Print a message to indicate that the process has transitioned to ready
         enqueue((void **)&ready1, (void **)&readyn, process, offsetof(struct process, next), 0, NULL);
     } else if (transition == SLEEPING) {
         // If the process is moving to sleeping, add it to the sleeping linked list in order of time (ascending)
+        printf("%d-%d: Process %s state transitioned to SLEEPING and will wake up in %dusecs\n", system_time-TIME_CORE_STATE_TRANSITIONS+1, system_time, process->command->name, process->syscall->data-TIME_CORE_STATE_TRANSITIONS); // Print a message to indicate that the process has transitioned to sleeping
         create_sleeping(process, process->syscall->data-TIME_CORE_STATE_TRANSITIONS);
     } else if (transition == WAITING) {
         // If the process is moving to waiting, set its waiting boolean to 1
         if (process->num_children == 0) {
             return 1; // Return 1 to indicate failure
         }
+        printf("%d-%d: Process %s state transitioned to WAITING\n", system_time-TIME_CORE_STATE_TRANSITIONS+1, system_time, process->command->name); // Print a message to indicate that the process has transitioned to waiting
         process->waiting_bool = 1;
     } else {
         // If the process is moving to IO, add it to the queue of processes waiting to use the device
+        printf("%d-%d: Process %s state transitioned to IO on device %s\n", system_time-TIME_CORE_STATE_TRANSITIONS+1, system_time, process->command->name, process->syscall->device->name); // Print a message to indicate that the process has transitioned to IO
         num_processes_waiting_for_IO++; // Increment the number of processes waiting for IO
         enqueue((void **)&process->syscall->device->queue_head, (void **)&process->syscall->device->queue_tail, process, offsetof(struct process, next), 0, NULL); // Add the process to the end of the queue of processes waiting to use the device
     }
