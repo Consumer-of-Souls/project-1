@@ -284,12 +284,12 @@ int read_sysconfig(char argv0[], char filename[]) {
             char *name = (char *) malloc_data(MAX_DEVICE_NAME+1); // A string to store the name of the device
             int read_speed; // An int to store the read speed of the device
             int write_speed; // An int to store the write speed of the device
-            sscanf(line, "%s %s %dBps %dBps", type, name, &read_speed, &write_speed); // Read the name, read speed and write speed from the line
+            sscanf(line, "%*s %s %dBps %dBps", name, &read_speed, &write_speed); // Read the name, read speed and write speed from the line
             create_device(name, read_speed, write_speed); // Create the device
         } else if (strcmp(type, "timequantum") == 0) {
             // If the type is timequantum, set the time quantum
             int time; // An int to store the time quantum
-            sscanf(line, "%s %d", type, &time); // Read the time quantum from the line
+            sscanf(line, "%*s %d", &time); // Read the time quantum from the line
             time_quantum = time; // Set the time quantum
         } else {
             fprintf(stderr, "Error: %s failed to read sysconfig file %s due to invalid type %s\n", argv0, filename, type); // Print an error message if the type is invalid
@@ -324,7 +324,7 @@ int read_commands(char argv0[], char filename[]) {
             if (strcmp(type, "spawn") == 0) {
                 // If the type is spawn, read the name of the command that needs to be spawned
                 char *name = (char *) malloc_data(MAX_COMMAND_NAME+1); // A string to store the name of the command
-                sscanf(line, "%dusecs %s %s", &time, type, name); // Read the name of the command from the line
+                sscanf(line, "%*dusecs %*s %s", name); // Read the name of the command from the line
                 // Check if the command to be spawned already exists
                 struct command *command = command1; // Set command to the first command in the linked list
                 while (command != NULL) {
@@ -344,7 +344,7 @@ int read_commands(char argv0[], char filename[]) {
                 // If the type is read or write, read the name of the device that needs to be read from or written to and the data that needs to be read or written
                 int data; // An int to store the data that needs to be read or written
                 char *name = (char *) malloc_data(MAX_DEVICE_NAME+1); // A string to store the name of the device
-                sscanf(line, "%dusecs %s %s %dB", &time, type, name, &data); // Read the name of the device and the data from the line
+                sscanf(line, "%*dusecs %*s %s %dB", name, &data); // Read the name of the device and the data from the line
                 // Check if the device to be read from or written to exists
                 struct device *device = device1; // Set the current device to the first device in the linked list
                 while (device != NULL) {
@@ -367,7 +367,7 @@ int read_commands(char argv0[], char filename[]) {
             } else if (strcmp(type, "sleep") == 0) {
                 // If the type is sleep, read the time that the process needs to sleep for
                 int data; // An int to store the time that the process needs to sleep for
-                sscanf(line, "%dusecs %s %dusecs", &time, type, &data); // Read the time that the process needs to sleep for from the line
+                sscanf(line, "%*dusecs %*s %dusecs", &data); // Read the time that the process needs to sleep for from the line
                 create_syscall(current_command, time, SLEEP, NULL, NULL, data); // Create the syscall
             } else if (strcmp(type, "wait") == 0) {
                 // If the type is wait, create the syscall
