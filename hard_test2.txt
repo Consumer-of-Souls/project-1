@@ -1,0 +1,12 @@
+hut
+	10usecs spawn pwd
+	12usecs spawn pwd
+	30usecs wait
+	50usecs exit
+pwd
+	5usecs spawn Jo
+	7usecs write usb3.1 1233922B
+	60usecs exit
+Jo
+	2usecs read usb3.1 43292B
+	5usecs exit
