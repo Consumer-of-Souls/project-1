@@ -475,8 +475,8 @@ int state_transition(struct process *process, enum transition transition) {
         enqueue((void **)&ready1, (void **)&readyn, process, offsetof(struct process, next), 0, NULL);
     } else if (transition == SLEEPING) {
         // If the process is moving to sleeping, add it to the sleeping linked list in order of time (ascending)
-        printf("%d-%d: Process %s state transitioned to SLEEPING and will wake up in %dusecs\n", system_time-TIME_CORE_STATE_TRANSITIONS+1, system_time, process->command->name, process->syscall->data-TIME_CORE_STATE_TRANSITIONS); // Print a message to indicate that the process has transitioned to sleeping
-        create_sleeping(process, process->syscall->data-TIME_CORE_STATE_TRANSITIONS);
+        printf("%d-%d: Process %s state transitioned to SLEEPING and will wake up in %dusecs\n", system_time-TIME_CORE_STATE_TRANSITIONS+1, system_time, process->command->name, process->syscall->data-TIME_CORE_STATE_TRANSITIONS+1); // Print a message to indicate that the process has transitioned to sleeping
+        create_sleeping(process, process->syscall->data-TIME_CORE_STATE_TRANSITIONS+1);
     } else if (transition == WAITING) {
         // If the process is moving to waiting, set its waiting boolean to 1
         if (process->num_children == 0) {

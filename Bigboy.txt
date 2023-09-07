@@ -1,0 +1,41 @@
+shell
+	10usecs spawn cal
+	11usecs spawn hut
+	12usecs spawn pwd
+	15usecs spawn cd
+	17usecs write usb3.1 290192B
+	20usecs wait
+	30usecs wait
+	32usecs sleep 1232usecs
+	50usecs spawn Jo
+	60usecs exit
+cal 
+	5usecs spawn hut
+	10usecs read ssd 281B
+	20usecs wait
+	40usecs exit
+hut 
+	10usecs spawn mot
+	20usecs write hd 29013B
+	30usecs wait
+	50usecs exit
+mot
+	5usecs spawn pwd
+	15usecs sleep 10usecs
+	20usecs wait
+	40usecs exit
+pwd
+	5usecs spawn cd
+	7usecs write terminal 1233922B
+	50usecs wait
+	60usecs exit
+cd
+	9usecs spawn Jo
+	11usecs sleep 10usecs
+	14usecs wait
+	30usecs spawn Jo
+	50usecs sleep 213usecs
+	80usecs exit
+Jo
+	2usecs read terminal 4B
+	5usecs exit
