@@ -1,0 +1,28 @@
+shell 
+	10usecs spawn second
+	11usecs spawn second
+	12usecs spawn second
+	13usecs spawn second
+	14usecs spawn second
+	15usecs spawn second
+	16usecs spawn second
+	17usecs spawn second
+	18usecs spawn second
+	19usecs spawn second
+	20usecs spawn second
+	21usecs spawn second
+	22usecs spawn second
+	23usecs spawn second
+	24usecs spawn second
+	25usecs spawn second
+	26usecs spawn second
+	27usecs spawn second
+	28usecs spawn second
+	29usecs spawn second
+	30usecs spawn second
+	30usecs wait
+	200usecs exit
+second
+	300usecs exit
+third
+	100usecs exit

@@ -59,10 +59,12 @@ struct process {
     struct command *command; // A pointer to the command that the process is executing
     struct syscall *syscall; // A pointer to the last syscall that the process executed
     int time; // The time that the process has been running for
-    int num_children; // The number of children that the process has
-    int waiting_bool; // A boolean to indicate if the process is waiting for a child process to finish
     struct process *parent; // A pointer to the parent of the process
     struct process *next; // A pointer to the next process in the linked list
+    struct process *first_child; // A pointer to the first child of the process
+    struct process *last_child; // A pointer to the last child of the process
+    struct process *next_sibling; // A pointer to the next sibling of the process
+    int wake_up_time; // The time that the process needs to wake up
 };
 
 struct command {
@@ -93,20 +95,6 @@ struct syscall {
     struct syscall *next; // A pointer to the next syscall in the linked list
 };
 
-struct sleeping {
-    // A struct to represent a sleeping process or the process that is using the bus
-    struct process *process; // A pointer to the process that is sleeping or using the bus
-    int time; // The time at which the process will wake up or finish using the bus
-    struct sleeping *next; // A pointer to the next sleeping process in the linked list
-};
-
-struct bus {
-    // A struct to represent the bus
-    struct process *process; // A pointer to the process that is using the bus
-    int time; // The time at which the process will finish using the bus
-};
-
-
 struct device *device1 = NULL; // A pointer to the first device in the linked list of devices
 
 struct command *command1 = NULL; // A pointer to the first command
@@ -115,9 +103,9 @@ struct command *commandn = NULL; // A pointer to the last command
 struct process *ready1 = NULL; // A pointer to the first ready process
 struct process *readyn = NULL; // A pointer to the last ready process
 
-struct sleeping *sleeping1 = NULL; // A pointer to the first sleeping process
+struct process *sleeping1 = NULL; // A pointer to the first sleeping process
 
-struct bus bus = {NULL, 0}; // A struct to represent the bus
+struct process *bus = NULL; // A pointer to the process that is using the bus
 
 struct process *waiting_with_no_children = NULL; // A pointer to the only waiting process with no children
 
@@ -221,10 +209,15 @@ int create_process(struct command *command, struct process *parent) {
     new_process->command = command; // Set the command the new process is executing
     new_process->syscall = NULL; // Set the syscall the new process is executing to NULL
     new_process->time = 0; // Set the time of the new process to 0
-    new_process->num_children = 0; // Set the number of children of the new process to 0
-    new_process->waiting_bool = 0; // Set the waiting boolean of the new process to 0
     new_process->parent = parent; // Set the parent of the new process
     new_process->next = NULL; // Set the next process in the linked list to NULL
+    new_process->first_child = NULL; // Set the first child of the new process to NULL
+    new_process->last_child = NULL; // Set the last child of the new process to NULL
+    new_process->next_sibling = NULL; // Set the next sibling of the new process to NULL
+    new_process->wake_up_time = 0; // Set the wake up time of the new process to 0
+    if (parent != NULL) {
+        enqueue((void **)&parent->first_child, (void **)&parent->last_child, new_process, offsetof(struct process, next_sibling), 0, NULL); // Add the new process to the end of the parent's children linked list
+    }
     enqueue((void **)&ready1, (void **)&readyn, new_process, offsetof(struct process, next), 0, NULL); // Add the new process to the end of the ready linked list
     return 0; // Return 0 to indicate success
 }
@@ -250,16 +243,6 @@ int create_syscall(struct command *parent_command, int time, enum syscall_types 
     new_syscall->data = data; // Set the data that the syscall needs to read or write or the time that the process needs to sleep for
     new_syscall->next = NULL; // Set the next syscall in the linked list to NULL
     enqueue((void **)&parent_command->queue_head, (void **)&parent_command->queue_tail, new_syscall, offsetof(struct syscall, next), offsetof(struct syscall, time), ascending); // Add the new syscall to the end of the parent command's syscall linked list
-    return 0; // Return 0 to indicate success
-}
-
-int create_sleeping(struct process *process, int time) {
-    // Adds a new sleeping process to the sleeping linked list in order of time (ascending)
-    struct sleeping *new_sleeping = (struct sleeping *) malloc_data(sizeof(struct sleeping)); // Allocate memory for the new sleeping process
-    new_sleeping->process = process; // Set the process that is sleeping
-    new_sleeping->time = time + system_time; // Set the time that the process will wake up
-    new_sleeping->next = NULL; // Set the next sleeping process in the linked list to NULL
-    enqueue((void **)&sleeping1, NULL, new_sleeping, offsetof(struct sleeping, next), offsetof(struct sleeping, time), ascending); // Add the new sleeping process to the sleeping linked list in order of time (ascending)
     return 0; // Return 0 to indicate success
 }
 
@@ -406,7 +389,7 @@ int read_commands(char argv0[], char filename[]) {
 
 int move_to_bus(void) {
     // Moves the first process on the device with the highest read speed to the bus
-    if (bus.process != NULL || num_processes_waiting_for_IO == 0) {
+    if (bus != NULL || num_processes_waiting_for_IO == 0) {
         return 1; // Return 1 to indicate failure
     }
     struct device *device = device1; // Set device to the first device in the linked list
@@ -414,9 +397,9 @@ int move_to_bus(void) {
         // Find the first device that has a process waiting to use it
         if (device->queue_head != NULL) {
             // If the device has a process waiting to use it, move the process to the bus
-            bus.process = device->queue_head; // Set the process that is using the bus to the first process in the queue of processes waiting to use the device
-            device->queue_head = bus.process->next; // Set the first process in the queue of processes waiting to use the device to the next process in the queue
-            bus.process->next = NULL; // Set the next process in the queue of processes waiting to use the device to NULL
+            bus = device->queue_head; // Set the process that is using the bus to the first process in the queue of processes waiting to use the device
+            device->queue_head = bus->next; // Set the first process in the queue of processes waiting to use the device to the next process in the queue
+            bus->next = NULL; // Set the next process in the queue of processes waiting to use the device to NULL
             break; // Break out of the loop
         }
         device = device->next; // Set device to the next device in the linked list
@@ -428,7 +411,7 @@ int move_to_bus(void) {
     num_processes_waiting_for_IO--; // Decrement the number of processes waiting for IO
     int sleep_time; // An int to store the time that the process needs to sleep until
     int speed; // An int to store the speed of the device
-    struct syscall *syscall = bus.process->syscall; // Set syscall to the syscall that the process is executing (read or write)
+    struct syscall *syscall = bus->syscall; // Set syscall to the syscall that the process is executing (read or write)
     unsigned long long int temp_data = (unsigned long long int) syscall->data * 1000000; // Multiply the data by 1000000 so it can work with microseconds
     if (syscall->type == READ) {
         // If the syscall is read, set the speed of the device to the read speed of the device
@@ -446,11 +429,11 @@ int move_to_bus(void) {
     }
     sleep_time += TIME_ACQUIRE_BUS; // Add the time it takes to acquire the bus to the time that the process needs to sleep until
     if (syscall->type == READ) {
-        printf("%d: Process %s is acquiring the bus and will relinquish it in %dusecs after reading %dB from device %s\n", system_time, bus.process->command->name, sleep_time, syscall->data, syscall->device->name); // Print a message to indicate that the process is acquiring the bus
+        printf("%d: Process %s is acquiring the bus and will relinquish it in %dusecs after reading %dB from device %s\n", system_time, bus->command->name, sleep_time, syscall->data, syscall->device->name); // Print a message to indicate that the process is acquiring the bus
     } else {
-        printf("%d: Process %s is acquiring the bus and will relinquish it in %dusecs after writing %dB to device %s\n", system_time, bus.process->command->name, sleep_time, syscall->data, syscall->device->name); // Print a message to indicate that the process is acquiring the bus
+        printf("%d: Process %s is acquiring the bus and will relinquish it in %dusecs after writing %dB to device %s\n", system_time, bus->command->name, sleep_time, syscall->data, syscall->device->name); // Print a message to indicate that the process is acquiring the bus
     }
-    bus.time = system_time + sleep_time; // Set the time that the process will finish using the bus
+    bus->wake_up_time = system_time + sleep_time; // Set the time that the process needs to wake up
     return 0; // Return 0 to indicate success
 }
 
@@ -476,14 +459,14 @@ int state_transition(struct process *process, enum transition transition) {
     } else if (transition == SLEEPING) {
         // If the process is moving to sleeping, add it to the sleeping linked list in order of time (ascending)
         printf("%d-%d: Process %s state transitioned to SLEEPING and will wake up in %dusecs\n", system_time-TIME_CORE_STATE_TRANSITIONS+1, system_time, process->command->name, process->syscall->data-TIME_CORE_STATE_TRANSITIONS+1); // Print a message to indicate that the process has transitioned to sleeping
-        create_sleeping(process, process->syscall->data-TIME_CORE_STATE_TRANSITIONS+1);
+        process->wake_up_time = system_time + process->syscall->data - TIME_CORE_STATE_TRANSITIONS + 1; // Set the time that the process needs to wake up
+        enqueue((void **)&sleeping1, NULL, process, offsetof(struct process, next), offsetof(struct process, wake_up_time), ascending); // Add the process to the sleeping linked list in order of time (ascending)
     } else if (transition == WAITING) {
         // If the process is moving to waiting, set its waiting boolean to 1
-        if (process->num_children == 0) {
+        if (process->first_child == NULL) {
             return 1; // Return 1 to indicate failure
         }
         printf("%d-%d: Process %s state transitioned to WAITING\n", system_time-TIME_CORE_STATE_TRANSITIONS+1, system_time, process->command->name); // Print a message to indicate that the process has transitioned to waiting
-        process->waiting_bool = 1;
     } else {
         // If the process is moving to IO, add it to the queue of processes waiting to use the device
         printf("%d-%d: Process %s state transitioned to IO on device %s\n", system_time-TIME_CORE_STATE_TRANSITIONS+1, system_time, process->command->name, process->syscall->device->name); // Print a message to indicate that the process has transitioned to IO
@@ -494,15 +477,61 @@ int state_transition(struct process *process, enum transition transition) {
 }
 
 int move_from_sleeping(void) {
-    if (sleeping1 == NULL || sleeping1->time > system_time) {
+    if (sleeping1 == NULL || sleeping1->wake_up_time > system_time) {
         return 1; // Return 1 to indicate failure
     }
-    printf("%d: Process %s woke up\n", system_time, sleeping1->process->command->name); // Print a message to indicate that the process has woken up
-    struct process *process = sleeping1->process; // Set process to the process that has woken up
-    struct sleeping *temp = sleeping1->next; // Set temp to the next sleeping process in the linked list
-    free(sleeping1); // Free the memory for the sleeping process
-    sleeping1 = temp; // Set the first sleeping process in the linked list to temp
+    printf("%d: Process %s woke up\n", system_time, sleeping1->command->name); // Print a message to indicate that the process has woken up
+    struct process *process = sleeping1; // Set process to the process that has woken up
+    sleeping1 = sleeping1->next; // Set the first process in the sleeping linked list to the next process in the sleeping linked list
     state_transition(process, READY); // Transition the process to ready
+    return 0; // Return 0 to indicate success
+}
+
+int orphan_children(struct process *exiting) {
+    // Orphans the children of the exiting process
+    if (exiting->first_child = NULL) {
+        return 1; // Return 1 to indicate failure
+    }
+    struct process *current = exiting->first_child; // Set current to the first child of the exiting process
+    while (current != NULL) {
+        // Loop through the children of the exiting process
+        struct process *next = current->next_sibling; // Set next to the next child of the exiting process
+        current->parent = NULL; // Set the parent of the current child to NULL
+        current->next_sibling = NULL; // Set the next sibling of the current child to NULL
+        current = next; // Set current to the next child of the exiting process
+    }
+    return 0; // Return 0 to indicate success
+}
+
+int remove_from_parent(struct process *exiting) {
+    // Removes the exiting process from its parent's children linked list
+    if (exiting->parent == NULL) {
+        return 1; // Return 1 to indicate failure
+    }
+    struct process *current = exiting->parent->first_child; // Set current to the first child of the parent of the exiting process
+    struct process *previous = NULL; // Set previous to NULL
+    while (current != NULL) {
+        if (current == exiting) {
+            // If the current child is the exiting process, remove it from the linked list of children
+            if (previous == NULL) {
+                // If the previous child is NULL, set the first child of the parent of the exiting process to the next child in the linked list
+                exiting->parent->first_child = current->next_sibling;
+            } else {
+                // If the previous child is not NULL, set the next child of the previous child to the next child in the linked list
+                previous->next_sibling = current->next_sibling;
+            }
+            if (current->next_sibling == NULL) {
+                // If the next child is NULL, set the last child of the parent of the exiting process to the previous child
+                exiting->parent->last_child = previous;
+            }
+            break;
+        }
+        previous = current; // Set previous to the current child
+        current = current->next_sibling; // Set current to the next child in the linked list
+    }
+    if (exiting->parent->first_child == NULL && exiting->parent->syscall->type == WAIT) {
+        waiting_with_no_children = exiting->parent; // Set the waiting process to the parent of the exiting process
+    }
     return 0; // Return 0 to indicate success
 }
 
@@ -532,14 +561,13 @@ int run_process(void) {
         printf("%d-%d: Process %s executed syscall %s\n", temp_time, system_time, running->command->name, syscall_types[syscall->type]); // Print a message to indicate that the process has executed the syscall
         if (syscall->type == SPAWN) {
             create_process(syscall->command, running); // Create the process
-            running->num_children++; // Increment the number of children of the running process
             state_transition(running, READY); // Advance the running process to READY (append it to the end of the ready linked list)
         } else if (syscall->type == READ || syscall->type == WRITE) {
             state_transition(running, IO); // Advance the running process to IO (append it to the end of the queue of processes waiting to use the device it needs to use)
         } else if (syscall->type == SLEEP) {
             state_transition(running, SLEEPING); // Advance the running process to SLEEPING (append it to the sleeping linked list in order of wake up time)
         } else if (syscall->type == WAIT) {
-            if (running->num_children == 0) {
+            if (running->first_child == NULL) {
                 // If the running process has no children, advance it to READY (doesn't need to wait for any children to exit)
                 printf("%d: Process %s had no children to wait for and advanced to READY\n", system_time, running->command->name); // Print a message to indicate that the process has no children to wait for
                 state_transition(running, READY); // Advance the running process to READY (append it to the end of the ready linked list)
@@ -548,10 +576,10 @@ int run_process(void) {
             }
         } else {
             if (running->parent != NULL) {
-                running->parent->num_children--; // Decrement the number of children of the parent of the running process
-                if (running->parent->num_children == 0 && running->parent->waiting_bool == 1) {
-                    waiting_with_no_children = running->parent; // Set the waiting process to the parent of the running process
-                }
+                remove_from_parent(running); // Remove the running process from its parent's children linked list
+            }
+            if (running->first_child != NULL) {
+                orphan_children(running); // Orphan the children of the running process
             }
             free(running); // Free the memory for the running process
         }
@@ -570,25 +598,24 @@ int execute_commands(void) {
     int simulating = 1; // An int to store whether the simulation is running
     int temp_time; // A temporary variable to store the system time
     while (simulating) {
-        temp_time = system_time; // Store the system time at the start of this iteration of the simulation
-        while (sleeping1 != NULL && sleeping1->time <= temp_time) {
+        temp_time = system_time; // Store the system time at the start of moving processes out of the sleeping linked list
+        while (sleeping1 != NULL && sleeping1->wake_up_time <= temp_time) {
             // Unblock any sleeping processes that have finished sleeping (at the time this simulation iteration started)
             move_from_sleeping(); // Unblock the first sleeping process in the linked list
         }
         if (waiting_with_no_children != NULL) {
             // Unblock the waiting process with no children (there will only be one with no children as this only occurs if the process that just ran exited)
             printf("%d: Process %s had no children left to wait for and advanced to READY\n", system_time, waiting_with_no_children->command->name); // Print a message to indicate that the process has no children to wait for
-            waiting_with_no_children->waiting_bool = 0; // Set the waiting boolean of the waiting process to 0
             state_transition(waiting_with_no_children, READY); // Advance the waiting process to READY (append it to the end of the ready linked list)
             waiting_with_no_children = NULL; // Set the waiting process to NULL
         } 
-        if (bus.process != NULL && bus.time <= temp_time) {
+        if (bus != NULL && bus->wake_up_time <= system_time) {
             // Unblock the process on the bus if it has finished using the bus
-            printf("%d: Process %s relinquished the bus\n", system_time, bus.process->command->name); // Print a message to indicate that the process has relinquished the bus
-            state_transition(bus.process, READY); // Advance the process to READY (append it to the end of the ready linked list)
-            bus.process = NULL; // Set the process using the bus to NULL
+            printf("%d: Process %s relinquished the bus\n", system_time, bus->command->name); // Print a message to indicate that the process has relinquished the bus
+            state_transition(bus, READY); // Advance the process to READY (append it to the end of the ready linked list)
+            bus = NULL; // Set the process using the bus to NULL
         }
-        if (bus.process == NULL && num_processes_waiting_for_IO != 0) {
+        if (bus == NULL && num_processes_waiting_for_IO != 0) {
             // Commence any pending IO if the bus is free
             move_to_bus(); // Move the first process on the device with the highest read speed to the bus
         } 
@@ -599,20 +626,20 @@ int execute_commands(void) {
         if (system_time == temp_time) {
             // If nothing occurred in this iteration of the simulation, time jump to the next event (if there isn't one, the simulation will end)
             if (sleeping1 != NULL) {
-                if (bus.process != NULL) {
+                if (bus != NULL) {
                     // If there is a process on the bus, set the system time to the time that the process on the bus will finish using the bus or the time that the first sleeping process will wake up (whichever is sooner)
-                    if (sleeping1->time < bus.time) {
-                        system_time = sleeping1->time;
+                    if (sleeping1->wake_up_time < bus->wake_up_time) {
+                        system_time = sleeping1->wake_up_time;
                     } else {
-                        system_time = bus.time;
+                        system_time = bus->wake_up_time;
                     }
                 } else {
                     // If there is no process on the bus, set the system time to the time that the first sleeping process will wake up
-                    system_time = sleeping1->time;
+                    system_time = sleeping1->wake_up_time;
                 }
-            } else if (bus.process != NULL) {
+            } else if (bus != NULL) {
                 // If there is a process on the bus, set the system time to the time that the process on the bus will finish using the bus
-                system_time = bus.time;
+                system_time = bus->wake_up_time;
             } else {
                 // If there is no process on the bus or any sleeping processes, a time jump cannot be performed and the simulation will end
                 simulating = 0; 
