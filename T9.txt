@@ -22,7 +22,6 @@ shell
 cal 
 	5usecs spawn hut
 	10usecs read ssd 281B
-	17usecs sleep 122usecs
 	20usecs wait
 	40usecs exit
 hut 
@@ -34,6 +33,7 @@ mot
 	5usecs spawn pwd
 	15usecs sleep 10usecs
 	20usecs wait
+	30usecs write hd 291032B
 	40usecs exit
 pwd
 	5usecs spawn cd
@@ -41,6 +41,7 @@ pwd
 	20usecs spawn PP
 	30usecs spawn Jo
 	40usecs spawn OwO
+	45usecs sleep 21312usecs
 	50usecs wait
 	60usecs exit
 cd
@@ -69,6 +70,7 @@ OwO
 	200usecs exit
 PP
 	100usecs read terminal 10B
+	200usecs wait
 	210usecs sleep 1232usecs
 	300usecs read usb3.1 32B
 	500usecs exit

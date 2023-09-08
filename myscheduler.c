@@ -392,6 +392,7 @@ int read_commands(char argv0[], char filename[]) {
 int move_to_bus(void) {
     // Moves the first process on the device with the highest read speed to the bus
     if (bus != NULL || num_processes_waiting_for_IO == 0) {
+        exit(EXIT_FAILURE); // Exit the program
         return 1; // Return 1 to indicate failure
     }
     struct device *device = device1; // Set device to the first device in the linked list
@@ -408,6 +409,7 @@ int move_to_bus(void) {
     }
     if (device == NULL) {
         num_processes_waiting_for_IO = 0; // Set the number of processes waiting for IO to 0
+        exit(EXIT_FAILURE); // Exit the program
         return 1; // Return 1 to indicate failure
     }
     num_processes_waiting_for_IO--; // Decrement the number of processes waiting for IO
@@ -451,6 +453,7 @@ int state_transition(struct process **process, enum transition transition) {
     // Transitions the process to the next state
     if ((*process)->next != NULL) {
         // A process cannot undergo a state transition while still in another linked list (this may cause issues in both the linked list it's currently part of, and the linked list it's being added to)
+        exit(EXIT_FAILURE); // Exit the program
         return 1; // Return 1 to indicate failure
     }
     system_time += TIME_CORE_STATE_TRANSITIONS; // Add the time it takes to transition states to the system time
@@ -466,6 +469,7 @@ int state_transition(struct process **process, enum transition transition) {
     } else if (transition == WAITING) {
         // If the process is moving to waiting, set its waiting boolean to 1
         if ((*process)->first_child == NULL) {
+            exit(EXIT_FAILURE); // Exit the program
             return 1; // Return 1 to indicate failure
         }
         printf("%d-%d: Process %s state transitioned to WAITING\n", system_time-TIME_CORE_STATE_TRANSITIONS+1, system_time, (*process)->command->name); // Print a message to indicate that the process has transitioned to waiting
@@ -480,6 +484,7 @@ int state_transition(struct process **process, enum transition transition) {
 
 int move_from_sleeping(void) {
     if (sleeping1 == NULL || sleeping1->wake_up_time > system_time) {
+        exit(EXIT_FAILURE); // Exit the program
         return 1; // Return 1 to indicate failure
     }
     printf("%d: Process %s woke up\n", system_time, sleeping1->command->name); // Print a message to indicate that the process has woken up
@@ -493,6 +498,7 @@ int move_from_sleeping(void) {
 int orphan_children(struct process **exiting) {
     // Orphans the children of the exiting process
     if ((*exiting)->first_child == NULL) {
+        exit(EXIT_FAILURE); // Exit the program
         return 1; // Return 1 to indicate failure
     }
     struct process *current = (*exiting)->first_child; // Set current to the first child of the exiting process
@@ -509,6 +515,7 @@ int orphan_children(struct process **exiting) {
 int remove_from_parent(struct process **exiting) {
     // Removes the exiting process from its parent's children linked list
     if ((*exiting)->parent == NULL) {
+        exit(EXIT_FAILURE); // Exit the program
         return 1; // Return 1 to indicate failure
     }
     struct process *current = (*exiting)->parent->first_child; // Set current to the first child of the parent of the exiting process
