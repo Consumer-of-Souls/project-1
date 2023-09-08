@@ -485,6 +485,7 @@ int move_from_sleeping(void) {
     printf("%d: Process %s woke up\n", system_time, sleeping1->command->name); // Print a message to indicate that the process has woken up
     struct process *process = sleeping1; // Set process to the process that has woken up
     sleeping1 = sleeping1->next; // Set the first process in the sleeping linked list to the next process in the sleeping linked list
+    process->next = NULL; // Set the next process in the sleeping linked list to NULL
     state_transition(&process, READY); // Transition the process to ready
     return 0; // Return 0 to indicate success
 }

@@ -22,6 +22,7 @@ shell
 cal 
 	5usecs spawn hut
 	10usecs read ssd 281B
+	17usecs sleep 122usecs
 	20usecs wait
 	40usecs exit
 hut 
