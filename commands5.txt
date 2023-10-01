@@ -1,0 +1,8 @@
+shell
+	0usecs spawn second
+	1usecs wait
+	2usecs write terminal 3000000
+	3usecs sleep 0
+	200usecs exit
+second
+	0usecs exit
